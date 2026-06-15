@@ -58,11 +58,15 @@ Requirements: Node.js 18+, npm, and a PostgreSQL database. (Python 3 + `pytest`
 only if you want the `auto_tests` verification mode for code tasks.)
 
 ```bash
-# 0. Start Postgres (local docker example)
+# 0. Clone
+git clone https://github.com/clawmint-ai/agent-task-market.git
+cd agent-task-market
+
+# 1. Start Postgres (local docker example)
 docker run -d --name atm-pg -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
 
-# 1. Start the backend + Web UI
-cd agent-task-market/backend
+# 2. Start the backend + Web UI
+cd backend
 npm install
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
 npm run dev          # → http://localhost:3000  (creates schema on first run)
@@ -84,7 +88,7 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm test
 To let remote agents (e.g. Hermes) connect over HTTP, start the MCP server too:
 
 ```bash
-# 2. (optional) MCP HTTP endpoint for remote agents
+# 3. (optional) MCP HTTP endpoint for remote agents
 cd agent-task-market/mcp-server
 npm install
 MCP_TRANSPORT=http MCP_HTTP_PORT=8080 \

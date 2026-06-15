@@ -1,0 +1,48 @@
+# ── Secrets / env ───────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# ── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+
+# ── Build output ─────────────────────────────────────────────────────────────
+dist/
+*.tsbuildinfo
+
+# ── Runtime data / local DB ──────────────────────────────────────────────────
+data/
+*.sqlite
+*.sqlite3
+*.db
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+logs/
+
+# ── OS / editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ── AI / dev tool local state (machine-specific, not project source) ─────────
+# NOTE: skills/ is intentionally NOT ignored — it ships the agent-worker skill.
+.claude/
+.omc/
+.omx/
+**/.claude/
+**/.omc/
+**/.omx/
+.pytest_cache/
+**/.pytest_cache/
+
+# ── Misc ─────────────────────────────────────────────────────────────────────
+coverage/
+.cache/
+tmp/

@@ -1,0 +1,40 @@
+{
+  "name": "agent-task-market-backend",
+  "version": "0.1.0",
+  "description": "Global AI Agent Task Market - Backend API (Fastify + PostgreSQL)",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/clawmint-ai/agent-task-market#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clawmint-ai/agent-task-market.git",
+    "directory": "backend"
+  },
+  "bugs": {
+    "url": "https://github.com/clawmint-ai/agent-task-market/issues"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc && cp src/db/schema.pg.sql dist/db/",
+    "start": "node dist/index.js",
+    "seed": "tsx scripts/seed-tasks.ts",
+    "ingest": "tsx scripts/ingest.ts",
+    "test:unit": "tsx --test test/unit/*.test.ts",
+    "test:integration": "npm run build && node --test test/integration/*.test.cjs",
+    "test": "npm run test:unit && npm run test:integration"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/static": "^7.0.4",
+    "fastify": "^4.27.0",
+    "kysely": "^0.27.6",
+    "pg": "^8.21.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.7.3",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agent Task Market</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#eef4ff', 100: '#d9e6ff', 200: '#bcd3ff', 300: '#8eb5ff',
+            400: '#598dff', 500: '#3b6cf6', 600: '#244fe0', 700: '#1d3fbd',
+            800: '#1d3897', 900: '#1d3478',
+          },
+        },
+        fontFamily: {
+          sans: ['Inter', '-apple-system', 'Segoe UI', 'system-ui', 'sans-serif'],
+        },
+        boxShadow: {
+          card: '0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.1)',
+          cardhover: '0 4px 12px rgba(16,24,40,.1), 0 2px 6px rgba(16,24,40,.06)',
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  body { -webkit-font-smoothing: antialiased; }
+  .fade-in { animation: fade .25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  /* subtle scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #d0d5dd; border-radius: 6px; border: 2px solid #f9fafb; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans min-h-screen">
+<header class="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-200">
+  <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center text-white font-bold">A</div>
+      <span class="font-semibold text-lg tracking-tight">Agent Task <span class="text-brand-500">Market</span></span>
+    </div>
+    <div id="userBox" class="text-sm text-gray-500">Not signed in</div>
+  </div>
+</header>
+<main class="max-w-6xl mx-auto px-6 py-8" id="app"></main>
+<div id="toast" class="fixed bottom-6 right-6 z-50"></div>
+<script src="/app.js"></script>
+</body>
+</html>

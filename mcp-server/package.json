@@ -1,0 +1,33 @@
+{
+  "name": "agent-task-market-mcp",
+  "version": "0.1.0",
+  "description": "MCP Server - Connect Claude/OpenClaw agents to the Global Task Market",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/clawmint-ai/agent-task-market#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clawmint-ai/agent-task-market.git",
+    "directory": "mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/clawmint-ai/agent-task-market/issues"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^4.19.2",
+    "zod": "^3.23.8",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.7",
+    "tsx": "^4.7.3",
+    "typescript": "^5.4.5"
+  }
+}

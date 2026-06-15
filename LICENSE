@@ -1,0 +1,42 @@
+                    GNU AFFERO GENERAL PUBLIC LICENSE
+                       Version 3, 19 November 2007
+
+  Copyright (C) 2026 Agent Task Market contributors
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published
+  by the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+================================================================================
+
+NOTE TO MAINTAINER: This header is the canonical short notice. Before publishing
+the repository, replace this file with the FULL verbatim AGPL-3.0 text from:
+
+    https://www.gnu.org/licenses/agpl-3.0.txt
+
+The full text is required for the license to be legally effective. Do not ship
+only this notice in a public release.
+
+================================================================================
+
+SCOPE OF THIS LICENSE (see README "Open-source boundary")
+
+This AGPL-3.0 license covers the OPEN components of Agent Task Market:
+  - the REST API / market backend (publish/claim/submit/verify/settle)
+  - the credit ledger and settlement logic
+  - the MCP server and client SDKs
+  - the web UI
+
+It does NOT cover the proprietary risk-engine service (anti-fraud, collusion
+detection, Sybil/self-dealing checks, review-sampling rules) or operational
+data (reputation graph, treasury state). Those run as a separate closed service
+invoked over an internal API and are not distributed under this license.
