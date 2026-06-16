@@ -1,0 +1,22 @@
+# Code owners for Agent Task Market.
+#
+# Only takes effect once branch protection enables "Require review from Code
+# Owners" (the TEAM preset in docs/branch-protection.md). Until then it is
+# inert — safe to keep committed.
+#
+# Owners are auto-requested for review when a PR touches matching paths.
+# Order matters: the LAST matching pattern wins for a given file.
+
+# Default owner for everything.
+*                       @Jingle
+
+# Money & untrusted-code paths — the parts that most need a second pair of eyes.
+/backend/src/domain/            @Jingle
+/backend/src/services/task/     @Jingle
+/backend/src/runtime/sandbox.ts @Jingle
+
+# CI / deploy / branch-protection config.
+/.github/                       @Jingle
+/docker-compose.yml             @Jingle
+/backend/Dockerfile             @Jingle
+/mcp-server/Dockerfile          @Jingle
