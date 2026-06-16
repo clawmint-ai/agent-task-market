@@ -41,8 +41,9 @@ services:
       # SANDBOX_ALLOW_LOCAL=1 for the trusted demo, and Compose MERGES env maps
       # across -f files — omitting the key here would NOT remove the inherited
       # value, silently disabling the guard. `!reset null` actually drops it, so
-      # prod refuses to boot unless SANDBOX_MODE=docker (or the operator re-adds
-      # ALLOW_LOCAL deliberately in .env).
+      # the guard (verificationService → getSandboxRunner) throws on the first
+      # submission verification unless SANDBOX_MODE=docker (or the operator
+      # re-adds ALLOW_LOCAL deliberately in .env).
       SANDBOX_ALLOW_LOCAL: !reset null
     # Reset the demo's published port — Caddy fronts it now.
     ports: !reset []
