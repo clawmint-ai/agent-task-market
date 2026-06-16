@@ -198,9 +198,10 @@ in-process runner is NOT a security boundary — it's only safe for trusted/
 self-authored seed tasks).
 
 **Order matters.** Once docker-mode is selected, the production guard in
-`sandbox.ts` makes the backend **refuse to boot** in any in-process config. So
-do the box-side prep BEFORE the deploy that flips it on, or you'll deploy into a
-backend that won't start:
+`sandbox.ts` makes the **first submission verification throw** in any in-process
+config (the backend boots fine and serves `/health` — only verification
+hard-fails, which is easy to miss). So do the box-side prep BEFORE the deploy
+that flips it on, so the first real verification works:
 
 1. **Resize the instance to >= 2 GB RAM** (t3.small). On t3.micro (1 GB),
    spawning sandbox containers on top of the 5-container stack OOMs even with
