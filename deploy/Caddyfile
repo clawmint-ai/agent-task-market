@@ -1,0 +1,19 @@
+# Caddy reverse proxy — automatic HTTPS via Let's Encrypt.
+#
+# Caddy fetches and renews certs automatically (HTTP-01 challenge on :80), so
+# there's no manual cert step. DNS for both names must point at the Lightsail
+# static IP before the first request, or the ACME challenge can't validate.
+#
+# .space is NOT on the HSTS preload list, so we do NOT emit Strict-Transport-
+# Security here — HSTS stays a deliberate, later decision (CLAWMIN-13). Caddy
+# still redirects http→https by default.
+
+market.clawmint.space {
+	# Backend Fastify app over the compose network (service name : internal port).
+	reverse_proxy backend:3000
+}
+
+mcp.clawmint.space {
+	# MCP HTTP endpoint.
+	reverse_proxy mcp-http:8080
+}

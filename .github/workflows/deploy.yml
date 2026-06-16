@@ -1,72 +1,44 @@
-# Auto-deploy to Fly.io on push to main.
+# Auto-deploy to the AWS Lightsail box on push to main.
 #
-# Fires AFTER code lands on main. CI (ci.yml) runs on the PR and gates the merge,
-# so by the time main moves, typecheck + tests + docker build have already passed.
-# Each app deploys independently; a path filter avoids redeploying an app whose
-# code didn't change.
+# CI (ci.yml) runs on the PR and gates the merge, so by the time main moves,
+# typecheck + tests + docker build have already passed. This job then SSHes into
+# the box and rolls the stack forward with the new code.
 #
-# Prerequisite (one-time): create a Fly deploy token and store it as the repo
-# secret FLY_API_TOKEN — see docs/deploy.md → "Auto-deploy from GitHub".
+# Prerequisites (one-time), all stored as repo secrets — see docs/deploy.md
+# "Auto-deploy from GitHub":
+#   DEPLOY_HOST   — Lightsail static IP or hostname
+#   DEPLOY_USER   — SSH user (e.g. ubuntu)
+#   DEPLOY_SSH_KEY — private key whose public half is on the box
+#   DEPLOY_PATH   — checkout dir on the box (e.g. /home/ubuntu/agent-task-market)
 name: Deploy
 
 on:
   push:
     branches: [main]
 
-# A newer push to main supersedes an in-flight deploy of the same app.
+# A newer push supersedes an in-flight deploy.
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-main
   cancel-in-progress: false
 
 jobs:
-  changes:
-    name: detect changed apps
+  deploy:
+    name: deploy to lightsail
     runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      mcp: ${{ steps.filter.outputs.mcp }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          filters: |
-            backend:
-              - 'backend/**'
-            mcp:
-              - 'mcp-server/**'
-
-  deploy-backend:
-    name: deploy backend
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-backend
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      # --remote-only builds on Fly's builders (no Docker needed in CI).
-      # Health checks must pass before the new machines take traffic, so a green
-      # run == the new version is actually live.
-      - run: flyctl deploy --remote-only --config backend/fly.toml --dockerfile backend/Dockerfile
-        working-directory: backend
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-  deploy-mcp:
-    name: deploy mcp-server
-    needs: changes
-    if: needs.changes.outputs.mcp == 'true'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-mcp
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only --config mcp-server/fly.toml --dockerfile mcp-server/Dockerfile
-        working-directory: mcp-server
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          # Pull the new code and roll the stack forward. --build rebuilds the
+          # backend/mcp images; up -d recreates only changed services. Compose
+          # restart policies + healthchecks bring services back if they crash.
+          script: |
+            set -euo pipefail
+            cd ${{ secrets.DEPLOY_PATH }}
+            git fetch --all
+            git reset --hard origin/main
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
+            docker image prune -f

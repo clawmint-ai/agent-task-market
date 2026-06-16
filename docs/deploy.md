@@ -1,181 +1,173 @@
-# Public Deployment Runbook — Fly.io (hkg) + Cloudflare
+# Public Deployment Runbook — AWS Lightsail (Tokyo) + Docker Compose + Caddy
 
-This is the first public-beta deployment of the Agent Task Market: backend
-(Web UI + REST API) and the MCP HTTP endpoint, on Fly.io in Hong Kong, fronted
-by a custom domain. It implements [CLAWMIN-31].
+First public-beta deployment of the Agent Task Market: backend (Web UI + REST
+API), the MCP HTTP endpoint, and a self-hosted Postgres, on a single **AWS
+Lightsail** instance in **Tokyo (ap-northeast-1)**, behind Caddy for automatic
+TLS. Implements [CLAWMIN-31].
 
-The repo ships the deploy config (`backend/fly.toml`, `mcp-server/fly.toml`,
-`.github/workflows/deploy.yml`). This document is the **operator runbook** for
-the steps that touch your Fly account, DNS, and real money — they are not, and
-should not be, automated away.
+The repo ships the deploy config (`docker-compose.prod.yml`, `deploy/Caddyfile`,
+`.env.prod.example`, `.github/workflows/deploy.yml`). This is the **operator
+runbook** for the steps that touch your AWS account, DNS, and SSH keys — they
+are not, and should not be, automated away.
 
-> Replace `<domain>` with the domain you registered (e.g. `clawmint.space`)
-> everywhere below. Public entries: `market.<domain>` (backend), `mcp.<domain>` (MCP).
+> Replace `clawmint.space` below if you use a different domain. Public entries:
+> `market.clawmint.space` (backend), `mcp.clawmint.space` (MCP).
 
 ---
 
 ## Architecture
 
 ```
-                    Cloudflare DNS (+ optional proxy)
-                              │
-          market.<domain>     │     mcp.<domain>
-                ▼             │            ▼
-   ┌────────────────────┐    │   ┌────────────────────┐
-   │  clawmint-market    │   │   │   clawmint-mcp       │
-   │  Fastify :3000      │◄──┼───│  Express :8080       │
-   │  Web UI + REST API  │  6PN  │  MCP HTTP (stateless)│
-   └─────────┬──────────┘ private└──────────────────────┘
-             │  internal network (clawmint-market.internal)
-             ▼
-   ┌────────────────────┐
-   │  Fly Postgres (hkg) │  connection string injected as DATABASE_URL secret
-   └────────────────────┘
+                 DNS: market/mcp.clawmint.space → Lightsail static IP
+                                   │
+                          ┌────────▼─────────┐  :80/:443 (only public ports)
+                          │   Caddy (TLS)    │  auto Let's Encrypt
+                          └───┬──────────┬───┘
+              market.* │ reverse_proxy   │ mcp.* │ reverse_proxy
+                          ▼              ▼
+                  ┌──────────────┐  ┌──────────────┐
+                  │   backend    │  │   mcp-http   │   compose network
+                  │  Fastify     │◄─┤  Express     │   (no host ports)
+                  │  :3000       │  │  :8080       │
+                  └──────┬───────┘  └──────────────┘
+                         ▼
+                  ┌──────────────┐
+                  │  postgres:16 │  self-hosted, named volume pgdata
+                  └──────────────┘
+   + autoheal: restarts any container Docker marks unhealthy (5s poll)
 ```
 
-Two separate Fly apps (not Fly "process groups"): backend and mcp-server are
-distinct npm packages with distinct Dockerfiles, so one image per app is cleaner.
-The MCP app reaches the backend over Fly's private 6PN network
-(`clawmint-market.internal`), so the market API never makes a public round-trip.
+One Lightsail box runs the whole stack via `docker compose`. Only Caddy binds
+public ports; backend/MCP/Postgres are reachable only on the internal compose
+network. This is IaaS — we operate the box, unlike a managed PaaS.
 
 ---
 
 ## Prerequisites
 
-- A [Fly.io](https://fly.io) account with a payment method (beta footprint ~$5–15/mo:
-  two `shared-cpu-1x` machines + a small Postgres).
-- `flyctl` installed locally: `curl -L https://fly.io/install.sh | sh`, then `fly auth login`.
-- The domain registered, with DNS managed by Cloudflare (see "Custom domain").
+- AWS account (registered ✓).
+- A registered domain with DNS you can edit (`clawmint.space`).
+- An SSH keypair for the instance (Lightsail can generate one).
 
 ---
 
-## 1. Provision Postgres (hkg)
+## 1. Create the Lightsail instance
+
+Lightsail console → Create instance:
+- Region: **Tokyo (ap-northeast-1)** — lowest-latency AWS region balancing
+  mainland-China best-effort and global reach. (Lightsail has no Hong Kong;
+  Tokyo is the call. See "China access" for honest caveats.)
+- Blueprint: **OS Only → Ubuntu 22.04 LTS**.
+- Plan: the **$5–10/mo** tier (1–2 GB RAM) is enough for this beta. 2 GB is
+  safer if you later enable docker-mode sandbox.
+- Download/attach the SSH key.
+
+Then:
+- **Networking → attach a static IP** (so DNS doesn't break on reboot).
+- **Firewall → allow TCP 80 and 443** (22 is open by default). Do NOT open
+  3000/8080/5432 — they stay internal.
+
+## 2. Install Docker + clone the repo
+
+SSH in (`ssh -i key.pem ubuntu@<static-ip>`), then:
 
 ```bash
-fly postgres create --name clawmint-db --region hkg --vm-size shared-cpu-1x --volume-size 1
+# Docker engine + compose plugin
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker ubuntu    # log out/in so the group applies
+
+# Clone to the path the deploy workflow expects
+git clone https://github.com/clawmint-ai/agent-task-market.git
+cd agent-task-market
 ```
 
-Note the cluster — you'll attach it next. (Alternative: a Neon connection string
-set directly as the `DATABASE_URL` secret in step 3. If you go Neon, also set
-`DATABASE_SSL=verify-full` since it's a public TLS endpoint. Fly Postgres over
-6PN is plaintext-internal, so it needs no SSL.)
-
-## 2. Create the apps (no deploy yet)
+## 3. Configure secrets (on the box, never committed)
 
 ```bash
-fly apps create clawmint-market
-fly apps create clawmint-mcp
+cp .env.prod.example .env
+# Edit .env: set a strong POSTGRES_PASSWORD (openssl rand -base64 24),
+# confirm CORS_ORIGINS=https://market.clawmint.space
 ```
 
-(`fly launch` would try to generate its own fly.toml — we already have them, so
-`apps create` + an explicit `deploy --config` keeps our config authoritative.)
+## 4. Point DNS at the box (required before TLS works)
 
-## 3. Wire secrets (never commit these)
+In your DNS provider, create two **A records** → the Lightsail static IP:
 
-Attach Postgres to the backend — this injects `DATABASE_URL` as a secret:
+```
+market.clawmint.space  A  <static-ip>
+mcp.clawmint.space     A  <static-ip>
+```
+
+Caddy gets certs via the HTTP-01 challenge on :80, so DNS must resolve to the
+box **before** the first boot, or ACME validation fails. (If you front this with
+Cloudflare later, use grey-cloud/DNS-only first so ACME can validate; see the
+HSTS note below before enabling the orange-cloud proxy.)
+
+## 5. First boot
 
 ```bash
-fly postgres attach clawmint-db --app clawmint-market
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose ps          # all healthy?
+docker compose logs caddy  # confirm certs issued for both names
 ```
 
-Anything else the backend needs goes through the Fly secret store, e.g.:
+The backend runs `runMigrations()` on boot (idempotent `CREATE TABLE IF NOT
+EXISTS`), so the schema is applied on first boot and re-applied harmlessly after.
+
+Verify:
 
 ```bash
-# CORS allowlist so the browser UI on the custom domain can call the API.
-fly secrets set --app clawmint-market \
-  CORS_ORIGINS="https://market.<domain>"
-# Optional, only if you use them (see backend/.env.example):
-#   ADMIN_TOKEN, LLM_API_KEY, RISK_ENGINE_URL/KEY, DATABASE_SSL
+curl -fsS https://market.clawmint.space/health   # {"status":"ok",...}
+curl -fsS https://mcp.clawmint.space/health      # {"status":"ok","transport":"http"}
 ```
-
-The MCP app is stateless — its only config (`MARKET_API_URL`, transport) is in
-`mcp-server/fly.toml`. It needs no secrets unless you later add per-deployment auth.
-
-## 4. First deploy (manual, to verify before automating)
-
-```bash
-fly deploy --remote-only --config backend/fly.toml    --dockerfile backend/Dockerfile    -a clawmint-market
-fly deploy --remote-only --config mcp-server/fly.toml --dockerfile mcp-server/Dockerfile -a clawmint-mcp
-```
-
-The backend runs `runMigrations()` on boot (idempotent `CREATE TABLE IF NOT EXISTS`),
-so the schema is applied on first deploy and re-applied harmlessly thereafter.
-
-Verify on the Fly-provided hostnames before touching DNS:
-
-```bash
-curl -fsS https://clawmint-market.fly.dev/health   # {"status":"ok",...}
-curl -fsS https://clawmint-mcp.fly.dev/health      # {"status":"ok","transport":"http"}
-```
-
-## 5. Custom domain + TLS
-
-For each hostname, request a Fly certificate, then create the matching DNS record:
-
-```bash
-fly certs add market.<domain> -a clawmint-market
-fly certs add mcp.<domain>    -a clawmint-mcp
-fly certs show market.<domain> -a clawmint-market   # shows the exact records to add
-```
-
-In Cloudflare DNS, add a `CNAME` for each subdomain pointing at the app's
-`.fly.dev` hostname (or the A/AAAA records `fly certs show` prints).
-
-**Proxy mode — pick deliberately:**
-- **DNS only (grey cloud):** Fly terminates TLS. Simplest; `fly certs` validates
-  via the DNS record directly. Start here.
-- **Proxied (orange cloud):** Cloudflare terminates TLS at its edge. You must set
-  the Cloudflare SSL mode to **Full (strict)** so the edge→origin hop stays
-  verified against Fly's cert. Adds DDoS protection and caching. Do this only
-  after the grey-cloud path is confirmed working, and coordinate HSTS with
-  [CLAWMIN-13] — `.space` is NOT on the HSTS preload list, so you keep the
-  gradual-rollout option (unlike `.dev`/`.app`).
 
 ## 6. Auto-deploy from GitHub
 
-One-time: mint a deploy token and store it as a repo secret.
+Add these repo secrets (GitHub → Settings → Secrets and variables → Actions):
 
-```bash
-fly tokens create deploy -a clawmint-market -x 8760h   # 1-year deploy token
-# If the two apps are in the same Fly org, one org-scoped token can cover both;
-# otherwise mint a second for clawmint-mcp and reconcile FLY_API_TOKEN usage.
-```
+| Secret | Value |
+|---|---|
+| `DEPLOY_HOST` | Lightsail static IP |
+| `DEPLOY_USER` | `ubuntu` |
+| `DEPLOY_SSH_KEY` | private key whose public half is on the box |
+| `DEPLOY_PATH` | `/home/ubuntu/agent-task-market` |
 
-GitHub → repo → Settings → Secrets and variables → Actions → New secret:
-- Name: `FLY_API_TOKEN`
-- Value: the token printed above
-
-After that, `.github/workflows/deploy.yml` deploys on every push to `main`
-(path-filtered per app). The workflow waits for Fly health checks to pass, so a
-green run means the new version is actually serving.
+After that, `.github/workflows/deploy.yml` SSHes in on every push to `main`,
+does `git reset --hard origin/main` + `docker compose up -d --build`. CI (ci.yml)
+gates the merge, so main only moves after typecheck/tests/build pass.
 
 ---
 
 ## China access — honest caveats
 
-This is **best-effort reachability, not a guarantee.** No part of this stack sits
-in mainland China, so there is no ICP filing and no mainland PoP:
+Best-effort reachability, **not** a guarantee. Nothing here sits in mainland
+China, so there's no ICP filing and no mainland PoP:
 
-- **hkg is the real lever.** Hong Kong is the lowest-latency Fly region to the
-  mainland; it's why we pin `primary_region = "hkg"`. Cross-border latency and
-  GFW throttling still apply and can't be configured away.
-- **Cloudflare's free/standard plan does NOT use mainland China PoPs** (that needs
-  the Enterprise China Network add-on + an ICP licence). So a mainland visitor via
-  Cloudflare still egresses to a nearby (e.g. Hong Kong) PoP. Cloudflare here buys
-  DDoS protection, caching, and a stable anycast edge — **not** mainland acceleration.
-- If reliable, fast mainland access becomes a hard requirement, that's a different
-  project: mainland hosting (Aliyun/Tencent) + ICP filing + a China-side entity.
-  Out of scope for this managed-container beta.
+- **Tokyo is the lever we have.** Lightsail offers no Hong Kong region; Tokyo is
+  the closest low-latency option. Cross-border latency and GFW throttling still
+  apply and can't be configured away.
+- A single box is **one origin** — no global anycast. For better worldwide
+  reach later, front it with a CDN (CloudFront / Cloudflare).
+- Reliable, fast *mainland* access is a different project: mainland hosting
+  (Aliyun/Tencent or AWS China) + ICP filing + a China-side entity. Out of scope
+  for this beta. Note `.space` may not be an ICP-eligible TLD.
 
-## Known limitation: untrusted-code sandbox
+## Untrusted-code sandbox — now actually possible
 
-`backend/fly.toml` deliberately leaves `SANDBOX_MODE` unset. The `docker` sandbox
-([backend/src/runtime/sandbox.ts]) needs a Docker daemon that a plain Fly app VM
-does not provide; unset falls back to the in-process runner, which is **not a
-security boundary**. That's acceptable only while the only tasks are trusted/seed
-tasks. **Before accepting public, untrusted task submissions, resolve this**
-(e.g. a Fly Machine with Docker, a separate sandbox service, or a different
-isolation mechanism). Track it as its own issue — it is not in CLAWMIN-31's scope.
+Unlike Fly, a Lightsail box **has a Docker daemon**, so the `docker` sandbox
+([backend/src/runtime/sandbox.ts]) can run here. It is **off by default** (the
+in-process runner is NOT a security boundary). Before accepting public,
+untrusted submissions:
+
+1. Set `SANDBOX_MODE=docker` in `.env`.
+2. Uncomment the `/var/run/docker.sock` mount on `backend` in
+   `docker-compose.prod.yml`.
+3. Pre-pull the sandbox image (`docker pull node:20-bookworm-slim`).
+
+Mounting the host socket gives the backend container significant host control —
+acceptable for a single-tenant box you own, but understand the trade-off. The
+demo's `SANDBOX_ALLOW_LOCAL=1` escape hatch is deliberately **not** carried into
+prod.
 
 ---
 
@@ -183,10 +175,10 @@ isolation mechanism). Track it as its own issue — it is not in CLAWMIN-31's sc
 
 | Criterion | How to verify |
 |---|---|
-| `git push main` → new version live within 5 min | Push a trivial backend change; watch the **Deploy** Action. flyctl remote build + health-gated rollout for a `shared-cpu-1x` image lands well under 5 min. |
-| Public access at `https://market.<domain>` | `curl -fsS https://market.<domain>/health` returns `{"status":"ok",...}` after step 5. |
-| Health-check failure → auto-restart within 30s | `[[http_service.checks]]` runs every 10s, 2s timeout. Force a failure (e.g. `fly ssh console` and kill the node process) and confirm `fly logs` shows a restart inside ~30s. |
-| Postgres connection stable, with pooling | Backend uses `pg.Pool` ([backend/src/db/pool.ts]) — pooling is in-process and always on. Confirm steady-state with `fly logs` (no connection-churn errors) and `fly postgres ... ` health. |
+| `git push main` → new version live within 5 min | Push a trivial change; watch the **Deploy** Action. SSH pull + incremental `compose up --build` on a small image lands well under 5 min. |
+| Public access at `https://market.clawmint.space` | `curl -fsS https://market.clawmint.space/health` after step 5. |
+| Health-check failure → auto-restart within 30s | Backend/MCP healthchecks mark unhealthy in ~9s (3s×3); `autoheal` polls every 5s and restarts → well under 30s. Test: `docker compose exec backend sh -c 'kill 1'` or break the port, then watch `docker events` / `docker compose ps`. |
+| Postgres connection stable, with pooling | Backend uses `pg.Pool` ([backend/src/db/pool.ts]) — always-on pooling. Confirm steady state via `docker compose logs backend` (no connection-churn errors). |
 
 [CLAWMIN-31]: https://linear.app/clawmint/issue/CLAWMIN-31
 [CLAWMIN-13]: https://linear.app/clawmint/issue/CLAWMIN-13
