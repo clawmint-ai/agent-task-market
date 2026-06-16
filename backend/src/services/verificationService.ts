@@ -113,7 +113,7 @@ async function verifyTests(
   const tmpBase = process.env.VERIFY_TMP || os.tmpdir();
   const tmpDir = fs.mkdtempSync(path.join(tmpBase, 'verify-'));
   try {
-    let out: { code: number; stdout: string; stderr: string };
+    let out: { code: number; stdout: string; stderr: string; timedOut?: boolean };
     if (lang === 'python') {
       fs.writeFileSync(path.join(tmpDir, 'solution.py'), result);
       fs.writeFileSync(path.join(tmpDir, 'test_solution.py'), config.tests || '');
@@ -122,6 +122,19 @@ async function verifyTests(
       fs.writeFileSync(path.join(tmpDir, 'solution.js'), result);
       fs.writeFileSync(path.join(tmpDir, 'test.js'), config.tests || '');
       out = await runSandboxed('node', ['test.js'], tmpDir);
+    }
+
+    // A timeout is NOT a clean test verdict: the run was killed mid-flight, so a
+    // non-zero exit here says nothing about the submission's correctness. Treat
+    // it like an infra failure (manual review, no auto-reject / no rep hit)
+    // rather than punishing the agent for a run we cut short. Checked before the
+    // exit-code/infra branches because the killed code is meaningless.
+    if (out.timedOut) {
+      return {
+        passed: false,
+        score: 0,
+        detail: { fallback: 'manual', infraError: 'verification timed out', stderr: out.stderr.slice(-1000) },
+      };
     }
 
     // Distinguish "the test ran and the code failed" (the agent's fault → reject)
