@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { createAccount, getAccountById, getCreditHistory } from '../services/accountService';
+import { createAccount, getAccountById, getCreditHistory, rotateApiKey } from '../services/accountService';
 import { getReputationHistory } from '../services/reputationService';
 import { authMiddleware } from '../middleware/auth';
 import { RateLimiter } from '../middleware/rateLimit';
@@ -125,6 +125,15 @@ export async function accountRoutes(
       gift_balance: req.account.gift_balance,
       earned_balance: req.account.earned_balance,
       history: await getCreditHistory(req.account.id),
+    };
+  });
+
+  // Rotate API key — invalidates the current key immediately and returns a new one.
+  app.post('/accounts/me/rotate-key', { preHandler: authMiddleware }, async (req, reply) => {
+    const newKey = await rotateApiKey(req.account.id);
+    return {
+      api_key: newKey,
+      message: 'Key rotated. Save this new key — it will not be shown again. The previous key is now invalid.',
     };
   });
 

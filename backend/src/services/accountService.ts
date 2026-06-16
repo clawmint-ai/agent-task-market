@@ -1,8 +1,9 @@
 import db, { DB } from '../db/pool';
 import { sql } from 'kysely';
-import { randomBytes, randomUUID, createHash } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import type { ComputeSource } from '../db/types';
 import { computeEscrowSplit } from '../domain/credits';
+import { hashApiKey } from '../domain/apiKey';
 
 export interface Account {
   id: string;
@@ -20,12 +21,9 @@ export interface Account {
   created_at: Date;
 }
 
-export type CreditClass = 'earned' | 'gift';
+export { hashApiKey } from '../domain/apiKey';
 
-/** Hash an API key for storage/lookup. Plaintext is never persisted. */
-export function hashApiKey(apiKey: string): string {
-  return createHash('sha256').update(apiKey).digest('hex');
-}
+export type CreditClass = 'earned' | 'gift';
 
 /**
  * Create an account. Returns the row plus the one-time plaintext API key, which
@@ -74,6 +72,25 @@ export async function createAccount(params: {
 
   const account = (await getAccountById(id))!;
   return { ...account, api_key: apiKey };
+}
+
+/**
+ * Rotate an account's API key. Generates a new key, stores its hash, and
+ * returns the one-time plaintext. The old key is immediately invalidated.
+ */
+export async function rotateApiKey(accountId: string): Promise<string> {
+  const newKey = randomBytes(32).toString('hex');
+  const newHash = hashApiKey(newKey);
+
+  const updated = await db
+    .updateTable('accounts')
+    .set({ api_key_hash: newHash, updated_at: sql<Date>`now()` } as any)
+    .where('id', '=', accountId)
+    .where('is_active', '=', true)
+    .executeTakeFirst();
+  if (!updated) throw new Error('Account not found or inactive');
+
+  return newKey;
 }
 
 export async function getAccountByApiKey(apiKey: string): Promise<Account | null> {
