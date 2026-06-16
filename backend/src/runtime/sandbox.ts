@@ -125,3 +125,12 @@ export function getSandboxRunner(): SandboxRunner {
   instance = mode === 'docker' ? new DockerSandbox() : new LocalProcessSandbox();
   return instance;
 }
+
+/**
+ * Test-only: clears the memoized singleton so a test can re-evaluate the factory
+ * under different env (NODE_ENV / SANDBOX_MODE / SANDBOX_ALLOW_LOCAL). Not used
+ * in production paths.
+ */
+export function resetSandboxRunnerForTest(): void {
+  instance = null;
+}

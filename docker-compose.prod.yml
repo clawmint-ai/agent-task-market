@@ -27,13 +27,23 @@ services:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/agent_task_market
       # Browser UI on the custom domain must be allowed to call the API.
       CORS_ORIGINS: ${CORS_ORIGINS:-https://market.clawmint.space}
-      # SANDBOX: unset here = in-process runner (NOT a security boundary).
-      # EC2 HAS a Docker daemon, so docker-mode IS possible — opt in by
-      # setting SANDBOX_MODE=docker in .env AND mounting the socket (commented
-      # below). Required before accepting untrusted submissions. See runbook.
+      # SANDBOX: docker-mode runs each untrusted submission in a throwaway
+      # container (no network, dropped caps, ro rootfs, mem/cpu/pids limits).
+      # Required before accepting untrusted submissions. Opt in via .env:
+      # SANDBOX_MODE=docker. The socket mount + shared work dir below make it work.
       SANDBOX_MODE: ${SANDBOX_MODE:-}
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-node:20-bookworm-slim}
-    # NOTE: SANDBOX_ALLOW_LOCAL is intentionally NOT carried over from the demo.
+      # Shared work dir: the backend (in this container) spawns the sandbox on
+      # the HOST daemon via the mounted socket, so the per-submission dir must
+      # exist at the SAME path on host and here. Bind-mounted below as /srv/verify.
+      VERIFY_TMP: ${VERIFY_TMP:-/srv/verify}
+      # Re-arm the production RCE guard (sandbox.ts): base compose sets
+      # SANDBOX_ALLOW_LOCAL=1 for the trusted demo, and Compose MERGES env maps
+      # across -f files — omitting the key here would NOT remove the inherited
+      # value, silently disabling the guard. `!reset null` actually drops it, so
+      # prod refuses to boot unless SANDBOX_MODE=docker (or the operator re-adds
+      # ALLOW_LOCAL deliberately in .env).
+      SANDBOX_ALLOW_LOCAL: !reset null
     # Reset the demo's published port — Caddy fronts it now.
     ports: !reset []
     # Tighter probe than the demo (base is 3s×20=60s to unhealthy). 3s×3 ≈ 9s to
@@ -46,10 +56,25 @@ services:
       start_period: 15s
     labels:
       autoheal: "true"
-    # To enable docker-mode sandbox, uncomment (lets the backend spawn sibling
-    # containers on the host daemon):
-    # volumes:
-    #   - /var/run/docker.sock:/var/run/docker.sock
+    # docker-mode sandbox wiring:
+    #  - docker.sock: lets the backend spawn sibling sandbox containers on the
+    #    host daemon. SECURITY: this is host-root-equivalent access — acceptable
+    #    for beta (the sandbox still isolates the untrusted code itself), but
+    #    gVisor/Firecracker is the long-term boundary. See docs/deploy.md.
+    #  - /srv/verify: shared per-submission work dir, same path host↔container,
+    #    so the sandbox's `-v <cwd>:/work` (resolved by the host daemon) finds
+    #    the files the backend wrote. Must exist on the host: sudo mkdir -p.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /srv/verify:/srv/verify
+    # The image runs as the unprivileged `node` user, but the mounted socket is
+    # owned root:docker on the host — so add the host's docker group GID as a
+    # supplementary group, or every `docker` call is permission-denied. The GID
+    # varies per box; the operator sets DOCKER_GID in .env:
+    #   getent group docker | cut -d: -f3
+    # Default 999 is an inert/unused group when sandbox mode is off (harmless).
+    group_add:
+      - "${DOCKER_GID:-999}"
 
   mcp-http:
     # Reset the demo's published port — Caddy fronts it.

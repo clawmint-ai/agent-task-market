@@ -42,5 +42,11 @@ jobs:
             cd ${{ secrets.DEPLOY_PATH }}
             git fetch --all
             git reset --hard origin/main
+            # Build the untrusted-code sandbox image (Node + Python + pytest).
+            # Layer-cached, so this is ~instant after the first build. The backend
+            # references it via SANDBOX_IMAGE when SANDBOX_MODE=docker. Building it
+            # unconditionally keeps it in sync with deploy/sandbox/Dockerfile even
+            # when sandbox mode is off (harmless: it's just an unused image then).
+            docker build -t clawmint-sandbox:latest deploy/sandbox
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
             docker image prune -f
