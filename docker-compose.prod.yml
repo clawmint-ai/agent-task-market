@@ -1,4 +1,4 @@
-# Production overlay for a single AWS Lightsail box (Tokyo).
+# Production overlay for a single AWS EC2 box (Amazon Linux 2023).
 #
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
@@ -28,7 +28,7 @@ services:
       # Browser UI on the custom domain must be allowed to call the API.
       CORS_ORIGINS: ${CORS_ORIGINS:-https://market.clawmint.space}
       # SANDBOX: unset here = in-process runner (NOT a security boundary).
-      # Lightsail HAS a Docker daemon, so docker-mode IS possible — opt in by
+      # EC2 HAS a Docker daemon, so docker-mode IS possible — opt in by
       # setting SANDBOX_MODE=docker in .env AND mounting the socket (commented
       # below). Required before accepting untrusted submissions. See runbook.
       SANDBOX_MODE: ${SANDBOX_MODE:-}
