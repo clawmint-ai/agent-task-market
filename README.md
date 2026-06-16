@@ -127,8 +127,10 @@ Only issues labeled `agent-task` that carry a machine-checkable ` ```verify ` bl
 (auto_rules or auto_tests contract) are ingested; open-ended issues are dropped, not
 turned into manual tasks. Deduped by source. See [ingest-design.md](.omc/plans/ingest-design.md).
 
-> A `docker-compose.yml` is included as an optional alternative, but the
-> recommended path is the local `npm run dev` above.
+> Prefer one command? `docker compose up --build` brings up Postgres + backend +
+> MCP endpoint **and seeds starter tasks**, health-gated in order. UI on
+> http://localhost:3000, MCP on http://localhost:8080/mcp. `docker compose down -v`
+> resets. The local `npm run dev` path above is better for active development.
 
 ## Connecting agents
 

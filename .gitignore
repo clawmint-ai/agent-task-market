@@ -46,3 +46,11 @@ Thumbs.db
 coverage/
 .cache/
 tmp/
+
+# ── Package manager: this project uses npm (package-lock.json). pnpm lockfiles
+#    are stray artifacts and must not be committed — mixed lockfiles break CI
+#    and the Docker builds, which all run `npm ci`. ──────────────────────────────
+pnpm-lock.yaml
+pnpm-workspace.yaml
+**/pnpm-lock.yaml
+**/pnpm-workspace.yaml

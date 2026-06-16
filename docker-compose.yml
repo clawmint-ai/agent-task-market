@@ -1,7 +1,12 @@
-# Optional containerized run. The primary/recommended path is local:
-#   cd backend && npm install && DATABASE_URL=... npm run dev
-# See README.md → "Run locally". This file is kept only for users who prefer Docker.
-version: '3.9'
+# One-command demo: `docker compose up --build`
+#
+# Brings up Postgres + the backend API/Web UI (http://localhost:3000) + the MCP
+# HTTP endpoint (http://localhost:8080/mcp), then seeds real auto-verifiable
+# starter tasks so the market isn't empty on first run. Health-gated startup
+# order: postgres → backend (migrates + serves) → seed (one-shot) + mcp-http.
+#
+# This is the easiest way to try the project. The hand-rolled local path
+# (cd backend && npm run dev) is in README.md → "Run locally".
 
 services:
   postgres:
@@ -13,6 +18,12 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Gate dependents on real readiness, not just "container started".
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_task_market"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     restart: unless-stopped
 
   backend:
@@ -22,9 +33,36 @@ services:
     environment:
       PORT: 3000
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/agent_task_market
+      # Local-process sandbox is NOT a security boundary. It's fine here because
+      # the only tasks are our own trusted seed tasks on a localhost demo. A real
+      # deployment accepting untrusted submissions MUST use SANDBOX_MODE=docker
+      # instead (see backend/src/runtime/sandbox.ts).
+      SANDBOX_ALLOW_LOCAL: "1"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     restart: unless-stopped
+
+  # One-shot: funds a platform account and publishes starter bounties, then exits.
+  # Idempotent (skips tasks whose titles already exist), so re-running `up` is safe.
+  # Uses the builder stage because seeding needs tsx + scripts/ (the runtime image
+  # is prod-only: compiled dist/ with no devDeps).
+  seed:
+    build:
+      context: ./backend
+      target: builder
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/agent_task_market
+    command: ["npx", "tsx", "scripts/seed-tasks.ts", "--commit"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: "no"
 
   mcp-http:
     build: ./mcp-server
@@ -35,7 +73,8 @@ services:
       MCP_HTTP_PORT: 8080
       MARKET_API_URL: http://backend:3000/api/v1
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
