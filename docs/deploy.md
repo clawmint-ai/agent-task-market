@@ -192,24 +192,56 @@ China, so there's no ICP filing and no mainland PoP:
 
 ## Untrusted-code sandbox — now actually possible
 
-Unlike Fly, an EC2 box **has a Docker daemon**, so the `docker` sandbox
+An EC2 box **has a Docker daemon**, so the `docker` sandbox
 ([backend/src/runtime/sandbox.ts]) can run here. It is **off by default** (the
-in-process runner is NOT a security boundary). Before accepting public,
-untrusted submissions:
+in-process runner is NOT a security boundary — it's only safe for trusted/
+self-authored seed tasks).
 
-1. Set `SANDBOX_MODE=docker` in `.env`.
-2. Uncomment the `/var/run/docker.sock` mount on `backend` in
-   `docker-compose.prod.yml`.
-3. Pre-pull the sandbox image (`docker pull node:20-bookworm-slim`).
+**Order matters.** Once docker-mode is selected, the production guard in
+`sandbox.ts` makes the **first submission verification throw** in any in-process
+config (the backend boots fine and serves `/health` — only verification
+hard-fails, which is easy to miss). So do the box-side prep BEFORE the deploy
+that flips it on, so the first real verification works:
 
-> **Capacity caveat on t3.micro (1 GB RAM):** spawning sandbox containers on top
-> of the 5-container stack will likely exhaust memory even with swap. Resize to
-> at least `t3.small` (2 GB) before enabling docker-mode sandbox.
+1. **Resize the instance to >= 2 GB RAM** (t3.small). On t3.micro (1 GB),
+   spawning sandbox containers on top of the 5-container stack OOMs even with
+   swap. (AWS console: stop → change instance type → start. Elastic IP persists.)
+2. **Create the shared work dir:** `sudo mkdir -p /srv/verify`. This is
+   bind-mounted into the backend at the same path. Required because the backend
+   runs in a container but spawns the sandbox on the *host* daemon (via the
+   socket), so the per-submission dir must resolve to the same path on both
+   sides. `VERIFY_TMP=/srv/verify` (set in compose) points the code at it.
+3. **Set in `.env`:** `SANDBOX_MODE=docker`,
+   `SANDBOX_IMAGE=clawmint-sandbox:latest`, and `DOCKER_GID=<host docker gid>`.
+   The backend image runs as the unprivileged `node` user, so to reach the
+   root:docker-owned socket it must join the host's docker group:
+   `getent group docker | cut -d: -f3` → put that number in `DOCKER_GID`.
+4. **Build the sandbox image:**
+   `docker build -t clawmint-sandbox:latest deploy/sandbox` (the deploy workflow
+   also does this every run; build it by hand once now so the first post-flip
+   boot has it). The image bakes in **both** Node and Python+pytest — the stock
+   `node:20-bookworm-slim` has no Python, and the sandbox runs `--network=none`
+   so it can't `pip install` at run time.
 
-Mounting the host socket gives the backend container significant host control —
-acceptable for a single-tenant box you own, but understand the trade-off. The
-demo's `SANDBOX_ALLOW_LOCAL=1` escape hatch is deliberately **not** carried into
-prod.
+The backend runtime image ships the **docker CLI client** (static binary, no
+daemon) so it can drive the host daemon over the socket; the socket mount alone
+isn't enough without the client.
+
+Then deploy (merge to main / `compose up`). The overlay already mounts the
+socket and `/srv/verify`, joins `DOCKER_GID`, and re-arms the guard.
+
+> **Why the guard must be re-armed (a real bug we hit):** base `docker-compose.yml`
+> sets `SANDBOX_ALLOW_LOCAL=1` for the trusted demo. Compose **merges** `environment:`
+> maps across `-f` files, so simply *omitting* the key in the prod overlay does
+> NOT remove it — the guard stays disabled and prod silently runs untrusted code
+> in-process. The overlay now uses `SANDBOX_ALLOW_LOCAL: !reset null` to actually
+> drop it. Regression-locked by `test/unit/sandbox.test.ts`.
+
+> **Socket = host-root-equivalent.** Mounting `/var/run/docker.sock` lets a
+> compromised backend control the host daemon. The sandbox still isolates the
+> submitted code itself (no network, dropped caps, ro rootfs, mem/cpu/pids
+> limits), so this is an accepted **beta** trade-off; gVisor/Firecracker is the
+> long-term boundary (tracked separately).
 
 ---
 
