@@ -66,11 +66,24 @@ export class DockerSandbox implements SandboxRunner {
   ) {}
 
   run(cmd: string, args: string[], cwd: string, timeoutMs = 15000): Promise<SandboxResult> {
+    // Run the container as the SAME uid:gid as this backend process. Two reasons:
+    //  1. Correctness: --cap-drop=ALL strips CAP_DAC_OVERRIDE, so the container's
+    //     root can NO LONGER bypass file permissions. The work dir is created by
+    //     fs.mkdtempSync at mode 0700 owned by this process's uid; a mismatched
+    //     container user (default root=0) can't even traverse into /work →
+    //     EACCES on every run → silent infra-fallback. Matching uid fixes it.
+    //  2. Defense in depth: untrusted submitted code runs as a non-root,
+    //     unprivileged user instead of container-root.
+    // HOME=/tmp (tmpfs, writable) so tools that need a home dir don't fail when
+    // the image has no passwd entry for this uid under the read-only root fs.
+    const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
+    const gid = typeof process.getgid === 'function' ? process.getgid() : 0;
     const dockerArgs = [
       'run', '--rm',
       '--network=none',
       '--cap-drop=ALL',
       '--security-opt=no-new-privileges',
+      '--user', `${uid}:${gid}`,
       `--memory=${this.memLimit}`,
       `--cpus=${this.cpus}`,
       `--pids-limit=${this.pids}`,
@@ -78,8 +91,9 @@ export class DockerSandbox implements SandboxRunner {
       '--tmpfs=/tmp:rw,size=64m',
       '-v', `${cwd}:/work:rw`,
       '-w', '/work',
-      // Clear env: only a minimal PATH inside the container.
+      // Clear env: only a minimal PATH + a writable HOME inside the container.
       '--env', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+      '--env', 'HOME=/tmp',
       this.image,
       cmd, ...args,
     ];
