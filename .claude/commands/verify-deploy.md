@@ -55,6 +55,8 @@
    - 全绿(seed exit 0 + `atm_conservation_ok 1` + smoke `✅ PASS`)→ 部署核验通过
    - 任一红 → 报告具体哪步、贴日志,**不要**含糊说"应该没问题"
    - 在对应 Linear issue(如 CLAWMIN-5)`save_comment` 记一条:部署的 commit、核验结果、`atm_conservation_ok` 值
+   - **核验全绿时,显式把 issue 推到 Done**:调 `mcp__linear__save_issue`(传完整 id + `state: "Done"`)。不依赖 GitHub↔Linear 的 `Closes` 联动是否接通——本命令既然已经核到生产真活,就由它自己把 issue 落地为 Done,这是"合并→上线→关闭"这条边唯一被真机证据背书的一环。
+   - **核验有红时,绝不推 Done**:留在原状态(In Progress / In Review),把失败项写进 `save_comment`。状态回写与核验结论同生死,不绿不动 state。
 
 ## 核验清单(逐条判定)
 
@@ -70,6 +72,7 @@
 ## 约束
 
 - **不假装跑过**:无 docker/网的环境只产出脚本 + 预期;真执行了才报实际输出
+- **不绿不推 Done**:只有本会话真跑出全绿(seed exit 0 + `atm_conservation_ok 1` + smoke `✅ PASS`)才调 `save_issue` 推 Done。只产出了脚本、没真执行 → 不动 issue state,把脚本交用户在目标机跑完回贴结果再定。状态回写绑死真机证据,绝不凭预期落 Done
 - **守恒是硬门**:`atm_conservation_ok` 非 1 = 账本出血,判定失败并告警,不放行
 - **--fresh 会清库**:`down -v` 删数据卷,仅在可接受重置时用;生产环境慎用,默认保留卷
 - **记录部署 commit**:每次核验记下实际跑的 commit,出问题能对版本
@@ -83,5 +86,6 @@
                           ↓
 /verify-deploy  → 目标机拉新代码 → 重建 → 断言序列 + 守恒   ← 本命令
                           ↓
-   回写 Linear issue,关闭部署相关验收项
+   全绿 → save_comment 记证据 + save_issue 推 Done(不赌 Closes 联动)
+   有红 → 报告失败项,issue 状态不动
 ```
