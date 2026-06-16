@@ -8,11 +8,17 @@
 // code-audit-v1.md §2.1 and roadmap §2.0c.
 
 import { spawn } from 'child_process';
+import { randomUUID } from 'crypto';
 
 export interface SandboxResult {
   code: number;
   stdout: string;
   stderr: string;
+  /** True if the run was killed because it exceeded timeoutMs (vs. exiting on
+   *  its own). Lets the caller distinguish a platform/runtime timeout from a
+   *  genuine test failure, so it can route to manual review instead of unfairly
+   *  rejecting the submission. */
+  timedOut?: boolean;
 }
 
 export interface SandboxRunner {
@@ -39,7 +45,13 @@ export class LocalProcessSandbox implements SandboxRunner {
       let stderr = '';
       child.stdout.on('data', (d) => (stdout += d.toString()));
       child.stderr.on('data', (d) => (stderr += d.toString()));
-      child.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }));
+      // spawn's `timeout` option kills the child with SIGTERM on expiry, which
+      // surfaces here as a null exit code + a signal. Flag that as timedOut so
+      // the caller can tell a timeout apart from a normal non-zero exit.
+      child.on('close', (code, signal) => {
+        const timedOut = code === null && signal != null;
+        resolve({ code: code ?? 1, stdout, stderr, timedOut });
+      });
       child.on('error', (err) => resolve({ code: 1, stdout, stderr: String(err) }));
     });
   }
@@ -78,8 +90,15 @@ export class DockerSandbox implements SandboxRunner {
     // the image has no passwd entry for this uid under the read-only root fs.
     const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
     const gid = typeof process.getgid === 'function' ? process.getgid() : 0;
+    // Name the container so we can force-kill it on timeout. SIGTERM-ing the
+    // `docker run` CLI does NOT stop the container it launched — that would leave
+    // an orphaned container running untrusted code, still holding its memory/cpu
+    // reservation until it finishes on its own (on a small host, a few hung
+    // submissions OOM the box). We `docker rm -f` by name to actually reap it.
+    const name = `clawmint-verify-${randomUUID()}`;
     const dockerArgs = [
       'run', '--rm',
+      '--name', name,
       '--network=none',
       '--cap-drop=ALL',
       '--security-opt=no-new-privileges',
@@ -98,14 +117,28 @@ export class DockerSandbox implements SandboxRunner {
       cmd, ...args,
     ];
     return new Promise((resolve) => {
-      // Timeout slightly larger than inner timeout; `docker run` is killed on timeout.
-      const child = spawn('docker', dockerArgs, { timeout: timeoutMs + 5000 });
+      // Don't use spawn's own `timeout` (it only kills the CLI, orphaning the
+      // container). Use an explicit timer that force-removes the container by
+      // name, which stops it and makes the CLI exit.
+      let timedOut = false;
+      const child = spawn('docker', dockerArgs);
+      const killTimer = setTimeout(() => {
+        timedOut = true;
+        // Detached best-effort reap; ignore failure (container may have just exited).
+        spawn('docker', ['rm', '-f', name], { stdio: 'ignore' }).on('error', () => {});
+      }, timeoutMs);
       let stdout = '';
       let stderr = '';
       child.stdout.on('data', (d) => (stdout += d.toString()));
       child.stderr.on('data', (d) => (stderr += d.toString()));
-      child.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }));
-      child.on('error', (err) => resolve({ code: 1, stdout, stderr: `docker error: ${String(err)}` }));
+      child.on('close', (code) => {
+        clearTimeout(killTimer);
+        resolve({ code: code ?? 1, stdout, stderr, timedOut });
+      });
+      child.on('error', (err) => {
+        clearTimeout(killTimer);
+        resolve({ code: 1, stdout, stderr: `docker error: ${String(err)}`, timedOut });
+      });
     });
   }
 }
@@ -147,4 +180,13 @@ export function getSandboxRunner(): SandboxRunner {
  */
 export function resetSandboxRunnerForTest(): void {
   instance = null;
+}
+
+/**
+ * Test-only: force a specific runner (e.g. a stub that simulates a timeout or a
+ * crash) so verification logic can be exercised without a real Docker daemon.
+ * Pass null to clear. Not used in production paths.
+ */
+export function setSandboxRunnerForTest(runner: SandboxRunner | null): void {
+  instance = runner;
 }
