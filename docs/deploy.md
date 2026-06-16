@@ -92,6 +92,18 @@ sudo curl -fsSL \
 sudo chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
 docker compose version                 # verify
 
+# buildx plugin — `docker compose build` delegates to buildx, which AL2023's
+# docker package does NOT include. Without it the build hangs with
+# "compose build requires buildx 0.17.0 or later". Install the plugin binary
+# (its release assets embed the version in the filename, so fetch the tag first).
+BUILDX_VER=$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest \
+  | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+sudo curl -fsSL \
+  "https://github.com/docker/buildx/releases/download/${BUILDX_VER}/buildx-${BUILDX_VER}.linux-amd64" \
+  -o $DOCKER_CONFIG/cli-plugins/docker-buildx
+sudo chmod +x $DOCKER_CONFIG/cli-plugins/docker-buildx
+docker buildx version                  # verify >= 0.17.0
+
 # t3.micro has only 1 GB RAM; the on-box `--build` (tsc compile) + 5 containers
 # can OOM. Add 2 GB swap.
 sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
@@ -108,7 +120,8 @@ cd agent-task-market
 
 ```bash
 cp .env.prod.example .env
-# Edit .env: set a strong POSTGRES_PASSWORD (openssl rand -base64 24),
+# Edit .env: set a strong POSTGRES_PASSWORD (openssl rand -hex 24 — use hex,
+# NOT base64: base64's / + = chars break the postgres:// DATABASE_URL),
 # confirm CORS_ORIGINS=https://market.clawmint.space
 ```
 
