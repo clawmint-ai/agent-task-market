@@ -104,7 +104,14 @@ async function verifyTests(
   result: string
 ): Promise<VerificationResult> {
   const lang = config.language || 'python';
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-'));
+  // Base dir for the per-submission work dir. In docker-mode the backend runs in
+  // a container but spawns the sandbox on the HOST daemon (via the mounted
+  // socket), so the `-v <cwd>:/work` bind is resolved by the host. The path must
+  // therefore exist identically on host and in this container — VERIFY_TMP points
+  // at a bind-mounted shared dir (e.g. /srv/verify) for that. Falls back to the
+  // OS tmpdir for local-process mode where backend and sandbox share a filesystem.
+  const tmpBase = process.env.VERIFY_TMP || os.tmpdir();
+  const tmpDir = fs.mkdtempSync(path.join(tmpBase, 'verify-'));
   try {
     let out: { code: number; stdout: string; stderr: string };
     if (lang === 'python') {
