@@ -6,6 +6,7 @@ import { applyReputation } from '../reputationService';
 import { decideFinalize, decideReclaim, decideStaleRelease } from '../../domain/settlement';
 import { TaskExecution, parseExecution } from './mappers';
 import { getRiskEngine } from '../../risk';
+import { logger } from '../../runtime/logger';
 
 export async function verifyResult(params: {
   taskId: string;
@@ -49,6 +50,9 @@ export async function finalizeExecution(params: {
   verificationDetail: Record<string, unknown>;
   feedback?: string;
 }): Promise<TaskExecution> {
+  // Captured inside the trx, logged AFTER commit — a rolled-back settlement must
+  // never emit a money-move log line. undefined for the no-op supersede branch.
+  let settled: { event: string; gift: number; earned: number; executorId?: string } | undefined;
   await withTransaction(async (trx) => {
     const task = await trx.selectFrom('tasks').selectAll().where('id', '=', params.taskId).forUpdate().executeTakeFirst();
     if (!task) throw new Error('Task not found');
@@ -170,6 +174,8 @@ export async function finalizeExecution(params: {
         .where('id', '!=', updated.id)
         .where('status', 'in', ['in_progress', 'submitted'])
         .execute();
+      // Winner is always paid as EARNED (redeemable) — see creditCredits call above.
+      settled = { event: 'pay_winner', gift: 0, earned: task.reward_credits, executorId: updated.executor_id };
       return;
     }
 
@@ -196,6 +202,7 @@ export async function finalizeExecution(params: {
         .set({ status: 'open', claimed_at: null })
         .where('id', '=', params.taskId)
         .execute();
+      settled = { event: 'reject_refund', gift: action.gift, earned: action.earned, executorId: updated.executor_id };
     } else {
       // reject_hold: others still working, keep escrow held.
       await trx
@@ -204,8 +211,26 @@ export async function finalizeExecution(params: {
         .where('id', '=', params.taskId)
         .where('status', '=', 'submitted')
         .execute();
+      settled = { event: 'reject_hold', gift: 0, earned: 0, executorId: updated.executor_id };
     }
   });
+
+  // Post-commit: emit a structured money-move record for ops/audit. Only reached
+  // when the transaction committed, so it never logs a settlement that rolled back.
+  if (settled) {
+    logger.info('settlement', {
+      event: `settlement.${settled.event}`,
+      taskId: params.taskId,
+      executionId: params.executionId,
+      executorId: settled.executorId,
+      accepted: params.accepted,
+      verifiedBy: params.verifiedBy,
+      score: params.score ?? null,
+      giftDelta: settled.gift,
+      earnedDelta: settled.earned,
+    });
+  }
+
   const row = await db.selectFrom('task_executions').selectAll().where('id', '=', params.executionId).executeTakeFirst();
   return parseExecution(row);
 }

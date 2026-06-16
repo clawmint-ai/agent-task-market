@@ -33,10 +33,13 @@ Thumbs.db
 
 # ── AI / dev tool local state (machine-specific, not project source) ─────────
 # NOTE: skills/ is intentionally NOT ignored — it ships the agent-worker skill.
-.claude/
+# NOTE: .claude/commands/ IS tracked — shared slash commands. Rest of .claude/ stays local.
+# Use .claude/* (not .claude/) so the dir itself isn't excluded — otherwise git
+# won't descend into it and the negation below can't re-include commands/.
+.claude/*
+!.claude/commands/
 .omc/
 .omx/
-**/.claude/
 **/.omc/
 **/.omx/
 .pytest_cache/
@@ -46,3 +49,12 @@ Thumbs.db
 coverage/
 .cache/
 tmp/
+
+# ── Package manager: this project uses npm (package-lock.json). pnpm lockfiles
+#    are stray artifacts and must not be committed — mixed lockfiles break CI
+#    and the Docker builds, which all run `npm ci`. ──────────────────────────────
+pnpm-lock.yaml
+pnpm-workspace.yaml
+**/pnpm-lock.yaml
+**/pnpm-workspace.yaml
+mcp-server/.claude/settings.json

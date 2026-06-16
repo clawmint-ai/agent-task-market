@@ -6,6 +6,7 @@ COPY package*.json ./
 RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
+COPY scripts ./scripts
 # tsc + copies schema.pg.sql into dist/db (see package.json "build").
 RUN npm run build
 

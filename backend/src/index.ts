@@ -7,6 +7,7 @@ import { accountRoutes } from './routes/accounts';
 import { taskRoutes } from './routes/tasks';
 import { adminRoutes } from './routes/admin';
 import { eventRoutes } from './routes/events';
+import { metricsRoutes } from './routes/metrics';
 import { createRateLimiter, keyByAccountOrIp, keyByIp, RateLimiter } from './middleware/rateLimit';
 import { startMaintenanceLoop } from './runtime/maintenance';
 
@@ -100,6 +101,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(taskRoutes, { prefix: '/api/v1' });
   await app.register(adminRoutes, { prefix: '/api/v1' });
   await app.register(eventRoutes, { prefix: '/api/v1' });
+  // Observability: Prometheus scrape endpoint at the root (no /api prefix).
+  await app.register(metricsRoutes);
 
   return app;
 }

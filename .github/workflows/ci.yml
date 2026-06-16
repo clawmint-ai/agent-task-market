@@ -62,3 +62,25 @@ jobs:
         run: npx tsc --noEmit
       - name: Build
         run: npm run build
+
+  docker:
+    name: docker compose (config + build)
+    runs-on: ubuntu-latest
+    # Guards the one-command demo (`docker compose up --build`): a broken
+    # Dockerfile, a missing build context, or a renamed stage target would
+    # otherwise only surface when a user tries to run the stack. ubuntu-latest
+    # ships Docker + Compose v2, so no extra setup is needed.
+    steps:
+      - uses: actions/checkout@v4
+      # Fail fast with a clear message if the compose file is malformed or refers
+      # to a build target/context that can't be resolved.
+      - name: Validate compose file
+        run: docker compose config -q
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      # Clean build of every buildable image (backend runtime, backend builder via
+      # the seed service's `target: builder`, and mcp-server). No layer cache on
+      # purpose — a from-scratch build is the honest check and can't be masked by
+      # stale cache. postgres has no `build:`, so it isn't pulled here.
+      - name: Build all images
+        run: docker compose build

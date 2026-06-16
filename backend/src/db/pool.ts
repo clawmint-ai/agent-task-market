@@ -1,5 +1,5 @@
 import { Kysely, PostgresDialect, Transaction } from 'kysely';
-import { Pool } from 'pg';
+import { Pool, type PoolConfig } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Database } from './types';
@@ -9,7 +9,42 @@ if (!DATABASE_URL) {
   throw new Error('DATABASE_URL is required (e.g. postgres://user:pass@host:5432/dbname)');
 }
 
-const pool = new Pool({ connectionString: DATABASE_URL });
+/**
+ * Resolve SSL config EXPLICITLY rather than letting the connection-string parser
+ * interpret `sslmode`. In pg v9 / pg-connection-string v3, a bare `sslmode=require`
+ * adopts libpq semantics (encrypt but DON'T verify the cert) — a silent downgrade.
+ * We pin the behavior here so an upgrade can't weaken it:
+ *   require | verify-full → strict verification (the deliberate, secure default)
+ *   no-verify            → encrypt, skip cert check (self-signed escape hatch)
+ *   disable              → no TLS
+ *   (none)               → no TLS (local/docker without certs)
+ * `DATABASE_SSL` overrides whatever the URL says.
+ */
+function resolveSsl(url: string): PoolConfig['ssl'] {
+  const fromUrl = /[?&]sslmode=([^&]+)/i.exec(url)?.[1]?.toLowerCase();
+  const mode = (process.env.DATABASE_SSL || fromUrl || '').toLowerCase();
+  switch (mode) {
+    case 'require':
+    case 'verify-full':
+    case 'verify-ca':
+      return { rejectUnauthorized: true };
+    case 'no-verify':
+    case 'prefer':
+      return { rejectUnauthorized: false };
+    case 'disable':
+    case '':
+    default:
+      return false;
+  }
+}
+
+// Strip sslmode from the URL so the parser can't re-apply (deprecated) semantics;
+// the explicit `ssl` below is the single source of truth.
+const connectionString = DATABASE_URL.replace(/([?&])sslmode=[^&]*(&|$)/i, (_m, pre, post) =>
+  post === '&' ? pre : '',
+).replace(/[?&]$/, '');
+
+const pool = new Pool({ connectionString, ssl: resolveSsl(DATABASE_URL) });
 
 export const db = new Kysely<Database>({
   dialect: new PostgresDialect({ pool }),
