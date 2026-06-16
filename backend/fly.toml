@@ -1,0 +1,50 @@
+# Fly.io deployment — backend (Web UI + REST API).
+#
+# Public entry (after `fly certs add`, see ../docs/deploy.md): https://market.<domain>
+# The public hostname is NOT set here — Fly serves on <app>.fly.dev and the
+# custom domain is attached out-of-band via `fly certs add`. Only the app name
+# lives here; change it (and .github/workflows/deploy.yml) if it's already taken.
+app = "clawmint-market"
+
+# hkg = Hong Kong. Lowest-latency Fly region to mainland China while staying a
+# managed, no-ICP deployment. This is the main lever for "国内友好访问" — see
+# docs/deploy.md → "China access" for the honest caveats.
+primary_region = "hkg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+  # NOTE: SANDBOX_MODE is deliberately NOT set here. `docker` mode needs a Docker
+  # daemon the Fly app VM doesn't provide; leaving it unset falls back to the
+  # in-process runner, which is NOT a security boundary for untrusted code.
+  # Resolve this consciously before accepting public task submissions — see
+  # docs/deploy.md → "Known limitation: untrusted-code sandbox".
+
+# Single public HTTPS service. force_https upgrades http→https; TLS is terminated
+# by Fly (or by Cloudflare when proxied — see runbook).
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # Always keep one machine warm: a cold start would add latency for the first
+  # China visitor and undercut the "live within 5 min" feel. Single-region beta,
+  # so we don't auto-stop to zero.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # Health probe. interval+timeout are tight so an unhealthy machine is detected
+  # and restarted well inside the 30s acceptance bar; grace_period covers boot
+  # (runMigrations + listen). Fly restarts a machine that fails these checks.
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
