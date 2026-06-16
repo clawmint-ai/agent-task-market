@@ -1,0 +1,46 @@
+# Auto-deploy to the AWS EC2 box on push to main.
+#
+# CI (ci.yml) runs on the PR and gates the merge, so by the time main moves,
+# typecheck + tests + docker build have already passed. This job then SSHes into
+# the box and rolls the stack forward with the new code.
+#
+# Prerequisites (one-time), all stored as repo secrets — see docs/deploy.md
+# "Auto-deploy from GitHub":
+#   DEPLOY_HOST   — EC2 Elastic IP (allocate one; the auto-assigned public IP
+#                   changes on stop/start and would break DNS + this secret)
+#   DEPLOY_USER   — SSH user (ec2-user on Amazon Linux 2023)
+#   DEPLOY_SSH_KEY — private key whose public half is on the box (the launch
+#                    keypair, e.g. "clawmint")
+#   DEPLOY_PATH   — checkout dir on the box (e.g. /home/ec2-user/agent-task-market)
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# A newer push supersedes an in-flight deploy.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy to lightsail
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          # Pull the new code and roll the stack forward. --build rebuilds the
+          # backend/mcp images; up -d recreates only changed services. Compose
+          # restart policies + healthchecks bring services back if they crash.
+          script: |
+            set -euo pipefail
+            cd ${{ secrets.DEPLOY_PATH }}
+            git fetch --all
+            git reset --hard origin/main
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
+            docker image prune -f

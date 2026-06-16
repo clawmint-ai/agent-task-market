@@ -2,9 +2,11 @@
 .env
 .env.*
 !.env.example
+!.env.prod.example
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.prod.example
 
 # ── Dependencies ─────────────────────────────────────────────────────────────
 node_modules/
