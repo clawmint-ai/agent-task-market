@@ -14,11 +14,46 @@ jobs:
     name: SonarCloud (quality gate)
     runs-on: ubuntu-latest
     if: ${{ vars.ENABLE_SONAR == 'true' }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
         with:
           # Sonar needs full history for accurate new-code / blame attribution.
           fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # Generate lcov from the full suite (unit + integration) so new-code
+      # coverage reflects the API-layer paths the integration tests exercise.
+      - name: Backend coverage
+        working-directory: backend
+        run: |
+          npm ci
+          npm run test:coverage
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+
+      # c8 writes SF: paths relative to backend/; the scan runs from the repo
+      # root, so rewrite them to repo-root-relative or Sonar can't match files.
+      - name: Normalize lcov paths
+        run: sed -i 's#^SF:src/#SF:backend/src/#' backend/coverage/lcov.info
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v4

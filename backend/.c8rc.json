@@ -1,0 +1,15 @@
+{
+  "all": true,
+  "src": ["src"],
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/**/*.d.ts",
+    "dist/**",
+    "test/**",
+    "scripts/**"
+  ],
+  "excludeAfterRemap": true,
+  "reporter": ["text-summary", "lcovonly"],
+  "reports-dir": "coverage",
+  "clean": true
+}

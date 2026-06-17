@@ -10,6 +10,7 @@ import { eventRoutes } from './routes/events';
 import { metricsRoutes } from './routes/metrics';
 import { createRateLimiter, keyByAccountOrIp, keyByIp, RateLimiter } from './middleware/rateLimit';
 import { startMaintenanceLoop } from './runtime/maintenance';
+import { HttpMetrics, normalizeRoute } from './domain/httpMetrics';
 
 const numEnv = (name: string, def: number): number => {
   const v = Number(process.env[name]);
@@ -59,6 +60,24 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   const limiters: RateLimiter[] = [globalLimiter, registerLimiter];
   app.decorate('rateLimiters', limiters);
 
+  // ── HTTP RED metrics ─────────────────────────────────────────────────────
+  // Shared accumulator: the onResponse hook records, the /metrics route renders.
+  const httpMetrics = new HttpMetrics();
+
+  // onResponse fires after the reply is sent, so reply.elapsedTime is final.
+  // Skip the scrape path itself (/metrics) so polling doesn't self-pollute the
+  // request/latency series.
+  app.addHook('onResponse', async (req, reply) => {
+    if (req.url === '/metrics') return;
+    const route = normalizeRoute(req.routeOptions?.url);
+    httpMetrics.observe({
+      method: req.method,
+      route,
+      status: reply.statusCode,
+      durationSeconds: reply.elapsedTime / 1000, // elapsedTime is ms
+    });
+  });
+
   // Global hook runs on every request except the static UI and health probe
   // (those must stay cheap and always reachable).
   app.addHook('onRequest', async (req, reply) => {
@@ -102,7 +121,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(adminRoutes, { prefix: '/api/v1' });
   await app.register(eventRoutes, { prefix: '/api/v1' });
   // Observability: Prometheus scrape endpoint at the root (no /api prefix).
-  await app.register(metricsRoutes);
+  await app.register(metricsRoutes, { httpMetrics });
 
   return app;
 }
