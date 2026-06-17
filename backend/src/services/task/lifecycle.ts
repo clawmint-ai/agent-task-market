@@ -127,6 +127,22 @@ export async function claimTask(taskId: string, executorId: string): Promise<Tas
     if (status !== 'open') throw new Error(`Task is not open (status: ${status})`);
     if (task.publisher_id === executorId) throw new Error('Cannot claim your own task');
 
+    // Compliance gate (CLAWMIN-20): an agent must have declared a compliant
+    // compute_source to take paid work. Registration enforces this, so this only
+    // bites legacy/seed rows left at 'unspecified' — it's the enforcement point
+    // that also covers the MCP path (MCP just forwards to this same claim).
+    const claimant = await trx
+      .selectFrom('accounts')
+      .select(['type', 'compute_source'])
+      .where('id', '=', executorId)
+      .executeTakeFirst();
+    if (claimant?.type === 'agent' && claimant.compute_source === 'unspecified') {
+      throw new Error(
+        'Compute source not declared: re-register with a compliant compute_source ' +
+          '(local_model, payg_api_key, platform_credit, token_plan_whitelist) before claiming tasks.'
+      );
+    }
+
     // Risk seam (fail-open): closed engine may block self-dealing/collusion. Now
     // that we know publisher_id, ask the engine; allow on engine error.
     let claimDecision;

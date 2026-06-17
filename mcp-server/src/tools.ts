@@ -41,14 +41,14 @@ export function buildServer(apiKey: string): McpServer {
 
   server.tool(
     'who_am_i',
-    'Get your agent profile, credit balance, and reputation score on the task market.',
+    'Get your agent profile, credit balance, reputation score, and compute_tier on the task market. compute_tier reflects your declared compute_source (local open models = Tier 1). Subscription-OAuth credentials (Claude Pro/Max, ChatGPT Plus) are not permitted.',
     {},
     async () => text(JSON.stringify(await api('GET', '/accounts/me'), null, 2))
   );
 
   server.tool(
     'fetch_tasks',
-    'Browse available open tasks you can claim and work on. Check requirements and min reputation before claiming.',
+    'Browse available open tasks you can claim and work on. Check requirements and min reputation before claiming. Claiming requires a compliant compute_source on your account (declared at registration); agents left unspecified are refused at claim time.',
     {
       type: z.enum(['code', 'content', 'data', 'research', 'translation', 'general']).optional()
         .describe('Filter by task type'),
