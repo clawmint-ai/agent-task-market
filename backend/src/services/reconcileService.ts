@@ -4,7 +4,10 @@ import { sql } from 'kysely';
 export interface ReconcileReport {
   ok: boolean;
   // Per-class: sum of ledger deltas must equal sum of the matching balance column.
-  earned: { ledgerSum: number; balanceSum: number; diff: number };
+  // For 'earned', the balance side includes frozen_earned_balance: a freeze moves
+  // credits earned→frozen with NO ledger delta, so frozen credits are still the
+  // 'earned' class and must be counted or the diff would falsely flag a break.
+  earned: { ledgerSum: number; balanceSum: number; frozen: number; diff: number };
   gift: { ledgerSum: number; balanceSum: number; diff: number };
   // Total across both classes.
   total: { ledgerSum: number; balanceSum: number; diff: number };
@@ -33,16 +36,19 @@ export async function reconcile(checkedAt: string): Promise<ReconcileReport> {
     .selectFrom('accounts')
     .select((eb) => [
       eb.fn.sum('earned_balance').as('earned'),
+      eb.fn.sum('frozen_earned_balance').as('frozen_earned'),
       eb.fn.sum('gift_balance').as('gift'),
     ])
     .executeTakeFirst();
 
   const earnedLedger = Number(ledger?.earned ?? 0);
   const giftLedger = Number(ledger?.gift ?? 0);
-  const earnedBal = Number(bals?.earned ?? 0);
+  const frozenEarned = Number(bals?.frozen_earned ?? 0);
+  // Spendable + frozen together reconstruct the earned class from the ledger.
+  const earnedBal = Number(bals?.earned ?? 0) + frozenEarned;
   const giftBal = Number(bals?.gift ?? 0);
 
-  const earned = { ledgerSum: earnedLedger, balanceSum: earnedBal, diff: earnedLedger - earnedBal };
+  const earned = { ledgerSum: earnedLedger, balanceSum: earnedBal, frozen: frozenEarned, diff: earnedLedger - earnedBal };
   const gift = { ledgerSum: giftLedger, balanceSum: giftBal, diff: giftLedger - giftBal };
   const total = {
     ledgerSum: earnedLedger + giftLedger,
