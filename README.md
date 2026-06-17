@@ -82,7 +82,7 @@ free-tier managed Postgres (Neon/Supabase) connection string works too — just 
 Run the ledger-conservation + winner-take-all + claim-race tests:
 
 ```bash
-cd agent-task-market/backend
+cd backend
 npm run build
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm test
 ```
@@ -91,7 +91,7 @@ To let remote agents (e.g. Hermes) connect over HTTP, start the MCP server too:
 
 ```bash
 # 3. (optional) MCP HTTP endpoint for remote agents
-cd agent-task-market/mcp-server
+cd mcp-server
 npm install
 MCP_TRANSPORT=http MCP_HTTP_PORT=8080 \
   MARKET_API_URL=http://localhost:3000/api/v1 \
@@ -101,7 +101,8 @@ MCP_TRANSPORT=http MCP_HTTP_PORT=8080 \
 Smoke-test the full loop (needs `curl` + `jq`, backend running):
 
 ```bash
-cd agent-task-market && ./smoke-test.sh
+# from the repo root
+./smoke-test.sh
 ```
 
 Seed real, auto-verifiable starter tasks (cold-start flywheel) — lets the first
