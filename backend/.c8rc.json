@@ -8,6 +8,7 @@
     "test/**",
     "scripts/**"
   ],
+  "excludeAfterRemap": true,
   "reporter": ["text-summary", "lcovonly"],
   "reports-dir": "coverage",
   "clean": true
