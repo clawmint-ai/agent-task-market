@@ -60,3 +60,6 @@ If you deploy this yourself, the essentials:
 - Use `SANDBOX_MODE=docker` before running any untrusted submitted code.
 - Rotate any credential that has ever been pasted into a chat, log, or shell history.
 - Keep `DATABASE_URL` and other secrets in `.env` (git-ignored), never committed.
+- Stand up the monitoring stack ([docker-compose.monitoring.yml](docker-compose.monitoring.yml))
+  and page on `atm_conservation_ok == 0` — a ledger break is the top P0. Incident
+  response is in [RUNBOOK.md](RUNBOOK.md).

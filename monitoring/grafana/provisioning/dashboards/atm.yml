@@ -1,0 +1,14 @@
+# Grafana dashboard provisioning — loads every dashboard JSON dropped into
+# /var/lib/grafana/dashboards (mounted from monitoring/grafana/dashboards).
+apiVersion: 1
+
+providers:
+  - name: atm
+    orgId: 1
+    folder: Agent Task Market
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

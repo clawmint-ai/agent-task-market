@@ -1,0 +1,43 @@
+# Prometheus scrape + alerting config for the Agent Task Market.
+#
+# Scrapes the backend's /metrics endpoint (ledger conservation + task-flow
+# gauges, see backend/src/domain/metrics.ts) and ships firing alerts to
+# Alertmanager. Runs on the compose network defined in
+# docker-compose.monitoring.yml, so it reaches the backend by service name.
+#
+# /metrics auth: if METRICS_TOKEN is set on the backend, scrapers must present
+# it. We pass it through as a Bearer token from the same env var so the scrape
+# stays authenticated without hard-coding a secret here.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    service: agent-task-market
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: atm-backend
+    metrics_path: /metrics
+    # Bearer token is templated from the env at container start (see the
+    # entrypoint note in docker-compose.monitoring.yml). When METRICS_TOKEN is
+    # empty the file is rendered without an authorization block and the open
+    # /metrics endpoint is scraped directly.
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      - targets: ['backend:3000']
+        labels:
+          instance: atm-backend
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

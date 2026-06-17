@@ -1,0 +1,15 @@
+# Grafana datasource provisioning — auto-adds Prometheus on first boot so the
+# dashboard works with no manual setup. The URL is the compose service name.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # Fixed uid so the provisioned dashboard's panel datasource refs
+    # ({"uid":"prometheus"}) resolve. Without this Grafana auto-generates a uid
+    # and every panel renders "datasource not found".
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

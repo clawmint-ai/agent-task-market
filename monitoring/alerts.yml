@@ -1,0 +1,62 @@
+# Alerting rules for the Agent Task Market.
+#
+# The one that matters: atm_conservation_ok. It is 1 when the immutable ledger
+# reconciles with account balances and 0 the instant credits leak or are
+# conjured. A 0 here means the money invariant is broken — page immediately.
+
+groups:
+  - name: ledger-conservation
+    rules:
+      # ── P0: the credit ledger no longer reconciles ──────────────────────────
+      # atm_conservation_ok == 0 means sum(ledger deltas) != sum(balances) for
+      # at least one credit class. This is the single most important signal in
+      # the system: it means credits were created or destroyed outside the
+      # double-entry path. 1m of sustained 0 rules out a transient mid-write
+      # scrape race.
+      - alert: ConservationBroken
+        expr: atm_conservation_ok == 0
+        for: 1m
+        labels:
+          severity: critical
+          page: "true"
+        annotations:
+          summary: "Credit ledger conservation BROKEN (atm_conservation_ok=0)"
+          description: >-
+            The credit ledger no longer reconciles with account balances.
+            Credits have leaked or been created outside the double-entry path.
+            See atm_conservation_diff for the per-class delta. Follow the
+            "conservation_ok dropped to 0" runbook in RUNBOOK.md immediately.
+
+      # Secondary view of the same fault: the signed diff per credit class.
+      # Fires even if conservation_ok somehow stays 1 (e.g. a rounding-tolerance
+      # bug) but a class drifts off zero.
+      - alert: ConservationDiffNonZero
+        expr: abs(atm_conservation_diff{class="total"}) > 0
+        for: 2m
+        labels:
+          severity: critical
+          page: "true"
+        annotations:
+          summary: "Ledger/balance diff is non-zero ({{ $value }})"
+          description: >-
+            atm_conservation_diff{class=total} = {{ $value }} (ledger sum minus
+            balance sum). Should be exactly 0. Inspect per-class series
+            atm_conservation_diff{class="earned"|"gift"} to localize the leak.
+
+  - name: availability
+    rules:
+      # ── P1: the backend stopped being scraped ───────────────────────────────
+      # `up` is synthesized by Prometheus per target; 0 means the scrape failed
+      # (process down, network partition, or wrong token). 2m debounces a
+      # rolling deploy / restart.
+      - alert: BackendDown
+        expr: up{job="atm-backend"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "atm-backend is not being scraped (up=0)"
+          description: >-
+            Prometheus cannot scrape backend:3000/metrics for 2m. The backend
+            may be down, unreachable, or rejecting the metrics token. While this
+            fires, conservation is UNMONITORED — treat with urgency.
