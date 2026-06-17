@@ -24,4 +24,5 @@ regexes = [
   '''sk-\.\.\.''',
   '''=\s*$''',          # empty assignment, e.g. `LLM_API_KEY=`
   '''=\.\.\.\s*$''',    # elided value, e.g. `RISK_ENGINE_KEY=...`
+  '''test-api-key-[0-9]+''',  # unit-test fixture fed to hashApiKey() (apiKeyHash.test.ts)
 ]
