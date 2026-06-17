@@ -1,0 +1,33 @@
+# Secret scanning with gitleaks.
+#
+# Runs the gitleaks CLI directly (not the gitleaks-action, which requires a
+# paid license key for organization-owned repos). Scans the full history on
+# push and only the PR's new commits on pull_request, failing the check if any
+# secret-shaped string lands outside the allowlist (.gitleaks.toml).
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  gitleaks:
+    name: gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so a secret committed earlier and never removed is
+          # still caught, not just the tip.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          VERSION=8.18.4
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose --exit-code 1

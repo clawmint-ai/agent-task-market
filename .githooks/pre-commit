@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Pre-commit gate — zero-dependency, shared via git (core.hooksPath).
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Skip in an emergency:    git commit --no-verify
+#
+# Does two cheap things before a commit is allowed:
+#   1. Block obvious secrets in the staged diff (belt-and-suspenders to CI gitleaks).
+#   2. Typecheck whichever package(s) the commit actually touches.
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+staged="$(git diff --cached --name-only --diff-filter=ACM)"
+[ -z "$staged" ] && exit 0
+
+fail=0
+
+# 1. Secret scan on staged content. Prefer gitleaks if installed; otherwise a
+#    minimal regex fallback so the hook still adds value without the binary.
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks protect --staged --config .gitleaks.toml --redact --no-banner; then
+    echo "✗ gitleaks: secret detected in staged changes" >&2
+    fail=1
+  fi
+else
+  # Fallback: flag added lines that look like a real key (skip *.env.example).
+  leak="$(git diff --cached -U0 --diff-filter=ACM -- . ':(exclude)*.env.example' ':(exclude)*.env.prod.example' \
+    | grep -E '^\+' \
+    | grep -Ei '(api[_-]?key|secret|password|token)["'\'' ]*[:=]["'\'' ]*[A-Za-z0-9/_+-]{16,}|sk-[A-Za-z0-9]{20,}' \
+    | grep -Eiv 'change-me|your-agent-api-key|sk-\.\.\.|postgres:postgres' || true)"
+  if [ -n "$leak" ]; then
+    echo "✗ possible secret in staged diff (install gitleaks for accuracy):" >&2
+    echo "$leak" | sed 's/^/    /' >&2
+    fail=1
+  fi
+fi
+
+# 2. Per-package typecheck, only for packages with staged changes.
+for pkg in backend mcp-server; do
+  if echo "$staged" | grep -q "^$pkg/" && [ -f "$pkg/tsconfig.json" ]; then
+    echo "• typecheck: $pkg"
+    if ! ( cd "$pkg" && npx --no-install tsc --noEmit ); then
+      echo "✗ typecheck failed in $pkg" >&2
+      fail=1
+    fi
+  fi
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "" >&2
+  echo "pre-commit gate failed. Fix the above, or bypass with: git commit --no-verify" >&2
+  exit 1
+fi
+echo "✓ pre-commit gate passed"

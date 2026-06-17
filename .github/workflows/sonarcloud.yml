@@ -1,0 +1,26 @@
+# SonarCloud quality gate. Free for public repos.
+#
+# Inert until you opt in: the job only runs when repo variable ENABLE_SONAR is
+# "true" AND secret SONAR_TOKEN exists. See sonar-project.properties for setup.
+name: SonarCloud
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  sonarcloud:
+    name: SonarCloud (quality gate)
+    runs-on: ubuntu-latest
+    if: ${{ vars.ENABLE_SONAR == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Sonar needs full history for accurate new-code / blame attribution.
+          fetch-depth: 0
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -47,6 +47,17 @@ cp .env.example .env
 npm run dev
 ```
 
+## Enable the pre-commit hook (recommended, once per clone)
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Scans staged changes for secrets and typechecks the package(s) you touched
+before each commit. Zero dependencies; bypass with `git commit --no-verify`.
+See [docs/code-quality.md](docs/code-quality.md) for the full PR gate stack
+(CodeQL, gitleaks, optional SonarCloud).
+
 ## Running tests
 
 ```bash
@@ -76,6 +87,10 @@ Before opening a PR, make sure:
       (`.claude/`, `.omc/`, `.omx/`) are staged. `.gitignore` should handle this —
       double-check `git status` anyway.
 - [ ] Docs updated if behavior or config changed (README, `.env.example`).
+
+CI also enforces these automatically on the PR: CodeQL (semantic SAST), gitleaks
+(secret scan), and the build/test jobs. A green local pre-commit hook means
+they'll almost certainly pass.
 
 Keep PRs focused — one logical change per PR. Match the surrounding code style
 (the repo uses plain TypeScript, no formatter config to fight with).
