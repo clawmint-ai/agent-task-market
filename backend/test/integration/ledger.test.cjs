@@ -26,9 +26,9 @@ const bal = async (id) => {
 
 test('winner-take-all: 3 agents race 1 task, only winner paid, credits conserved', async () => {
   const pub = await acct.createAccount({ type: 'human', name: 'pub' });
-  const a1 = await acct.createAccount({ type: 'agent', name: 'a1' });
-  const a2 = await acct.createAccount({ type: 'agent', name: 'a2' });
-  const a3 = await acct.createAccount({ type: 'agent', name: 'a3' });
+  const a1 = await acct.createAccount({ type: 'agent', name: 'a1', computeSource: 'local_model' });
+  const a2 = await acct.createAccount({ type: 'agent', name: 'a2', computeSource: 'local_model' });
+  const a3 = await acct.createAccount({ type: 'agent', name: 'a3', computeSource: 'local_model' });
   const start = (await bal(pub.id)) + (await bal(a1.id)) + (await bal(a2.id)) + (await bal(a3.id));
 
   const t = await task.createTask({
@@ -71,7 +71,7 @@ test('ledger invariant: sum(delta) == sum(balances)', async () => {
 test('claim race (§1.2): concurrent claims on max_executors=1 admit exactly one', async () => {
   const pub = await acct.createAccount({ type: 'human', name: 'pub2' });
   const agents = [];
-  for (let i = 0; i < 8; i++) agents.push(await acct.createAccount({ type: 'agent', name: 'r' + i }));
+  for (let i = 0; i < 8; i++) agents.push(await acct.createAccount({ type: 'agent', name: 'r' + i, computeSource: 'local_model' }));
   const t = await task.createTask({
     publisherId: pub.id, title: 'single-slot', description: 'one winner',
     rewardCredits: 50, maxExecutors: 1, verification: { mode: 'manual' },
@@ -97,16 +97,34 @@ test('credential gate (§1.5): agent registration requires compute_source + atte
   const r3 = await reg({ type: 'agent', name: 'ok', compute_source: 'local_model', compute_attestation: true });
   assert.equal(r3.statusCode, 201, 'compliant agent accepted');
   assert.equal(JSON.parse(r3.body).compute_source, 'local_model');
+  assert.equal(JSON.parse(r3.body).compute_tier, 1, 'local_model surfaces as Tier 1');
+
+  const r5 = await reg({ type: 'agent', name: 'oauth', compute_source: 'subscription_oauth', compute_attestation: true });
+  assert.equal(r5.statusCode, 403, 'subscription OAuth rejected with compliance status');
 
   const r4 = await reg({ type: 'human', name: 'publisher' });
   assert.equal(r4.statusCode, 201, 'human accepted without compute_source');
+
+  // Claim-time gate: an agent left at 'unspecified' (legacy/seed path that
+  // bypasses the register route) cannot take paid work.
+  const stray = await acct.createAccount({ type: 'agent', name: 'stray' });
+  const pub = await acct.createAccount({ type: 'human', name: 'gatepub' });
+  const gt = await task.createTask({
+    publisherId: pub.id, title: 'gate', description: 'x',
+    rewardCredits: 10, maxExecutors: 1, verification: { mode: 'manual' },
+  });
+  await assert.rejects(
+    () => task.claimTask(gt.id, stray.id),
+    /compute source not declared/i,
+    'unspecified agent refused at claim time'
+  );
 
   await app.close();
 });
 
 test('gift credits are non-redeemable but spendable on publishing; refund preserves class', async () => {
   const pub = await acct.createAccount({ type: 'human', name: 'giftpub' });
-  const a1 = await acct.createAccount({ type: 'agent', name: 'gw' });
+  const a1 = await acct.createAccount({ type: 'agent', name: 'gw', computeSource: 'local_model' });
   const before = await acct.getAccountById(pub.id);
   assert.equal(before.gift_balance, 1000, 'signup bonus is gift');
   assert.equal(before.earned_balance, 0, 'no earned at signup');
@@ -178,7 +196,7 @@ test('deadline reclaim (§3.7): expired unclaimed task refunds escrow + fails', 
 
 test('deadline reclaim: does NOT touch a task with an active executor', async () => {
   const pub = await acct.createAccount({ type: 'human', name: 'dlpub2' });
-  const ag = await acct.createAccount({ type: 'agent', name: 'dlagent' });
+  const ag = await acct.createAccount({ type: 'agent', name: 'dlagent', computeSource: 'local_model' });
   const past = new Date(Date.now() - 60_000).toISOString();
   const t = await task.createTask({
     publisherId: pub.id, title: 'expired-but-claimed', description: 'in flight',
