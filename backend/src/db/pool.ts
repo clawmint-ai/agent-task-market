@@ -1,7 +1,5 @@
 import { Kysely, PostgresDialect, Transaction } from 'kysely';
 import { Pool, type PoolConfig } from 'pg';
-import * as fs from 'fs';
-import * as path from 'path';
 import type { Database } from './types';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -62,11 +60,15 @@ export function withTransaction<T>(fn: (trx: Transaction<Database>) => Promise<T
   return db.transaction().execute(fn);
 }
 
-/** Apply the schema DDL. Fail-fast: a bad migration must not start a dirty server. */
+/**
+ * Apply all pending migrations. Kept as `runMigrations` (same name + signature)
+ * so existing callers — index.ts boot, ingest.ts, seed-tasks.ts — are unchanged;
+ * it now delegates to the Kysely migrator instead of running a raw DDL file.
+ * Fail-fast: a bad migration must not start a dirty server.
+ */
 export async function runMigrations(): Promise<void> {
-  const ddl = fs.readFileSync(path.join(__dirname, 'schema.pg.sql'), 'utf8');
-  await pool.query(ddl);
-  console.log('✅ PostgreSQL schema ready');
+  const { migrateToLatest } = await import('./migrator');
+  await migrateToLatest();
 }
 
 export async function closeDb(): Promise<void> {
