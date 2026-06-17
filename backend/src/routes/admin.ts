@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { timingSafeEqual } from 'crypto';
 import { reconcile } from '../services/reconcileService';
 import { listRiskFlags, releaseRiskFlag, confirmRiskFlag } from '../services/riskFlagService';
+import type { RateLimiter } from '../middleware/rateLimit';
 
 /** Constant-time string compare to avoid leaking the token via timing. */
 function safeEqual(a: string, b: string): boolean {
@@ -14,9 +15,25 @@ function safeEqual(a: string, b: string): boolean {
 /**
  * Admin/ops endpoints. Protected by a shared ADMIN_TOKEN (env). If ADMIN_TOKEN
  * is unset, admin routes are disabled (404) — they must never be open.
+ *
+ * Every route is additionally rate-limited by `adminLimiter` (a dedicated, strict
+ * per-IP budget) via a plugin-scoped onRequest hook: these handlers do expensive
+ * work (ledger reconcile, balance-mutating freeze/release), so they get a tighter
+ * limit than the lenient global one — defense-in-depth if ADMIN_TOKEN leaks.
  */
-export async function adminRoutes(app: FastifyInstance) {
+export async function adminRoutes(
+  app: FastifyInstance,
+  opts: { adminLimiter?: RateLimiter }
+) {
   const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+  const adminLimiter = opts.adminLimiter;
+
+  // Plugin-scoped: applies to every route registered in this plugin, and nothing
+  // else (Fastify encapsulation). Runs before the route handler; replying inside
+  // the hook (429 when over budget) short-circuits the request.
+  if (adminLimiter) {
+    app.addHook('onRequest', adminLimiter.hook);
+  }
 
   // Gate shared by every admin route: 404 when disabled (no token configured),
   // 401 on a missing/wrong token. Returns true when the request may proceed.

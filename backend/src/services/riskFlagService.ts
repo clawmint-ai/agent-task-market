@@ -1,7 +1,6 @@
 import db, { DB, withTransaction } from '../db/pool';
 import { sql } from 'kysely';
 import { randomUUID } from 'crypto';
-import { unfreezeEarned } from './accountService';
 
 /**
  * Risk-flag persistence + admin resolution (CLAWMIN-23). A flag is the audit record

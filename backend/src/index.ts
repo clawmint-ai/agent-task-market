@@ -57,7 +57,17 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     max: numEnv('REGISTER_RATE_LIMIT_MAX', 10), // 10 new accounts/hour/IP
     keyGenerator: keyByIp,
   });
-  const limiters: RateLimiter[] = [globalLimiter, registerLimiter];
+  // Admin limiter: strict, keyed by IP. Admin endpoints are token-gated but
+  // perform expensive work (reconcile scans the ledger; release/confirm mutate
+  // balances), so they get a tighter budget than the lenient global limiter —
+  // defense-in-depth against a leaked ADMIN_TOKEN being used to hammer them.
+  const adminLimiter = createRateLimiter({
+    name: 'admin',
+    windowMs: numEnv('ADMIN_RATE_LIMIT_WINDOW_MS', 60_000),
+    max: numEnv('ADMIN_RATE_LIMIT_MAX', 20), // 20 req/min/IP
+    keyGenerator: keyByIp,
+  });
+  const limiters: RateLimiter[] = [globalLimiter, registerLimiter, adminLimiter];
   app.decorate('rateLimiters', limiters);
 
   // ── HTTP RED metrics ─────────────────────────────────────────────────────
@@ -118,7 +128,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // Routes
   await app.register(accountRoutes, { prefix: '/api/v1', registerLimiter });
   await app.register(taskRoutes, { prefix: '/api/v1' });
-  await app.register(adminRoutes, { prefix: '/api/v1' });
+  await app.register(adminRoutes, { prefix: '/api/v1', adminLimiter });
   await app.register(eventRoutes, { prefix: '/api/v1' });
   // Observability: Prometheus scrape endpoint at the root (no /api prefix).
   await app.register(metricsRoutes, { httpMetrics });
