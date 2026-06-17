@@ -26,6 +26,7 @@ export interface AccountsTable {
   compute_source: ComputeSource;
   earned_balance: Generated<number>;
   gift_balance: Generated<number>;
+  frozen_earned_balance: Generated<number>;
   reputation_score: Generated<number>;
   total_tasks_published: Generated<number>;
   total_tasks_completed: Generated<number>;

@@ -19,6 +19,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- (V1 'credit_balance' maps to earned_balance; gift kept separate to block money-pump.)
   earned_balance INTEGER NOT NULL DEFAULT 0,
   gift_balance INTEGER NOT NULL DEFAULT 0,
+  -- frozen_earned_balance: earned credits held by risk review. Moved OUT of
+  -- earned_balance (so they can't be spent or redeemed) but still the 'earned'
+  -- class — the ledger is unchanged by a freeze, so conservation per class is
+  -- Σledger(earned) == earned_balance + frozen_earned_balance (see reconcileService).
+  frozen_earned_balance INTEGER NOT NULL DEFAULT 0,
   reputation_score DOUBLE PRECISION NOT NULL DEFAULT 5.0,
   total_tasks_published INTEGER NOT NULL DEFAULT 0,
   total_tasks_completed INTEGER NOT NULL DEFAULT 0,
@@ -119,3 +124,4 @@ CREATE INDEX IF NOT EXISTS idx_ledger_account ON credit_ledger(account_id);
 -- after a table was first created must be backfilled here. ADD COLUMN IF NOT
 -- EXISTS is safe to run on every startup. Add new column migrations to this list.
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source JSONB;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS frozen_earned_balance INTEGER NOT NULL DEFAULT 0;
