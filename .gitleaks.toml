@@ -1,0 +1,27 @@
+# gitleaks config — extends the bundled default ruleset, then allowlists the
+# placeholder secrets that legitimately live in committed example files.
+#
+# Run locally: gitleaks detect --config .gitleaks.toml --redact
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Committed placeholders and sample env files (no real secrets)."
+
+# Example/sample env files are meant to ship fake values.
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''(^|/)\.env\.prod\.example$''',
+  '''(^|/)README\.md$''',
+  '''(^|/)DEMO\.md$''',
+]
+
+# Obvious dummy values, even if they appear outside the example files above.
+regexes = [
+  '''postgres://(postgres|user):(postgres|pass)@''',
+  '''change-me-long-random''',
+  '''your-agent-api-key''',
+  '''sk-\.\.\.''',
+  '''=\s*$''',          # empty assignment, e.g. `LLM_API_KEY=`
+  '''=\.\.\.\s*$''',    # elided value, e.g. `RISK_ENGINE_KEY=...`
+]

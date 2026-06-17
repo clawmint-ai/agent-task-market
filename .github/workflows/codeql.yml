@@ -1,0 +1,41 @@
+# CodeQL — semantic security + quality analysis for JS/TS.
+#
+# Free for public repos. Findings appear under the repo's Security > Code
+# scanning tab, and (with branch protection) the "CodeQL" check can be made
+# required to merge. See docs/branch-protection.md for the verbatim check name.
+name: CodeQL
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    # Weekly re-scan catches newly-disclosed query patterns on code that
+    # hasn't changed. Off-peak Monday 07:17 UTC to avoid the top-of-hour rush.
+    - cron: "17 7 * * 1"
+
+jobs:
+  analyze:
+    name: CodeQL (javascript-typescript)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # required to upload results to code scanning
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # security-and-quality adds maintainability/correctness queries on
+          # top of the default security set.
+          queries: security-and-quality
+
+      # No build step: CodeQL extracts JS/TS without compilation. tsc itself is
+      # already covered by the CI workflow.
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"

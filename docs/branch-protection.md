@@ -15,14 +15,20 @@ GitHub UI equivalents in [§ UI path](#ui-path).
 Branch protection matches checks by the job's **display name** (`name:` in the
 workflow), not the job id. They must be copied verbatim:
 
-| Job id        | Required check name (verbatim)   |
-|---------------|----------------------------------|
-| `backend`     | `backend (typecheck + tests)`    |
-| `mcp-server`  | `mcp-server (typecheck + build)` |
-| `docker`      | `docker compose (config + build)`|
+| Job id        | Required check name (verbatim)    | Workflow        |
+|---------------|-----------------------------------|-----------------|
+| `backend`     | `backend (typecheck + tests)`     | `ci.yml`        |
+| `mcp-server`  | `mcp-server (typecheck + build)`  | `ci.yml`        |
+| `docker`      | `docker compose (config + build)` | `ci.yml`        |
+| `analyze`     | `CodeQL (javascript-typescript)`  | `codeql.yml`    |
+| `gitleaks`    | `gitleaks (secret scan)`          | `security.yml`  |
 
-If you rename a job in `ci.yml`, you must update the protection rule too, or the
-gate silently stops requiring that job.
+If you rename a job, you must update the protection rule too, or the gate
+silently stops requiring that job.
+
+`SonarCloud (quality gate)` (`sonarcloud.yml`) is intentionally **not** in this
+table: it only runs when you opt in (repo variable `ENABLE_SONAR=true`). Add it
+as a required check after enabling it — see [docs/code-quality.md](code-quality.md).
 
 ---
 
@@ -57,7 +63,9 @@ gh api -X PUT "repos/$REPO/branches/main/protection" \
     "checks": [
       { "context": "backend (typecheck + tests)" },
       { "context": "mcp-server (typecheck + build)" },
-      { "context": "docker compose (config + build)" }
+      { "context": "docker compose (config + build)" },
+      { "context": "CodeQL (javascript-typescript)" },
+      { "context": "gitleaks (secret scan)" }
     ]
   },
   "enforce_admins": false,
@@ -94,7 +102,9 @@ gh api -X PUT "repos/$REPO/branches/main/protection" \
     "checks": [
       { "context": "backend (typecheck + tests)" },
       { "context": "mcp-server (typecheck + build)" },
-      { "context": "docker compose (config + build)" }
+      { "context": "docker compose (config + build)" },
+      { "context": "CodeQL (javascript-typescript)" },
+      { "context": "gitleaks (secret scan)" }
     ]
   },
   "enforce_admins": true,
@@ -130,7 +140,7 @@ Settings → Branches → Add branch ruleset (or "Add classic branch protection 
 - ✅ Require a pull request before merging
   - SOLO: leave "Require approvals" **unchecked**
   - TEAM: Require approvals = 1, ✅ Require review from Code Owners, ✅ Dismiss stale approvals
-- ✅ Require status checks to pass → search and add the three check names from the
+- ✅ Require status checks to pass → search and add the check names from the
   table above; ✅ Require branches to be up to date before merging
 - ✅ Require conversation resolution before merging
 - ✅ Do not allow force pushes / deletions
@@ -140,9 +150,9 @@ Settings → Branches → Add branch ruleset (or "Add classic branch protection 
 
 ## Notes
 
-- The three checks only become selectable in the UI **after they've run at least
-  once** on a PR. If you don't see them, open a throwaway PR, let CI run, then
-  add them.
+- A check only becomes selectable in the UI **after it has run at least
+  once** on a PR. If you don't see one, open a throwaway PR, let CI run, then
+  add it.
 - `docker compose (config + build)` does a clean image build on every PR (~a few
   minutes). If that latency ever hurts, the cheaper guard is to keep
   `docker compose config -q` required and move the full build to a merge-queue or
