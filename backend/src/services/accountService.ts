@@ -261,83 +261,72 @@ export async function debitForPublish(
 }
 
 /**
- * Freeze earned credits: move `amount` from earned_balance → frozen_earned_balance.
- * Used by risk review to hold suspicious earned credits out of circulation
- * (unspendable, unredeemable) pending manual/risk clearance. The credit class is
- * unchanged ('earned'), so this writes NO net ledger delta — only a delta=0 audit
- * row. Conservation per class therefore stays Σledger(earned) == earned_balance +
- * frozen_earned_balance (see reconcileService). Atomic + guarded so it can't drive
- * earned_balance negative under concurrency.
+ * Move `amount` of earned credits between earned_balance and
+ * frozen_earned_balance. Risk review freezes suspicious earned credits to hold
+ * them out of circulation (unspendable, unredeemable) pending manual/risk
+ * clearance; unfreeze reverses it. The credit class is unchanged ('earned'), so
+ * this writes NO net ledger delta — only a delta=0 audit row. Conservation per
+ * class therefore stays Σledger(earned) == earned_balance + frozen_earned_balance
+ * (see reconcileService). Atomic + guarded on the drained column so neither
+ * balance can go negative under concurrency.
  */
-export async function freezeEarned(
+async function moveEarnedFrozen(
+  direction: 'freeze' | 'unfreeze',
   accountId: string,
   amount: number,
   reason: string,
-  opts: { description?: string } = {}
+  opts: { description?: string }
 ): Promise<{ earned_balance: number; frozen_earned_balance: number }> {
   if (!Number.isInteger(amount) || amount <= 0) throw new Error('Amount must be a positive integer');
+  const freezing = direction === 'freeze';
+  const sign = freezing ? -1 : 1; // freeze: earned↓ frozen↑ ; unfreeze: earned↑ frozen↓
+  const guard = freezing
+    ? sql<boolean>`earned_balance >= ${amount}`
+    : sql<boolean>`frozen_earned_balance >= ${amount}`;
+  const insufficient = freezing
+    ? 'Insufficient earned balance to freeze'
+    : 'Insufficient frozen balance to unfreeze';
   return db.transaction().execute(async (trx) => {
     const updated = await trx
       .updateTable('accounts')
       .set({
-        earned_balance: sql<number>`earned_balance - ${amount}`,
-        frozen_earned_balance: sql<number>`frozen_earned_balance + ${amount}`,
+        earned_balance: sql<number>`earned_balance + ${sign * amount}`,
+        frozen_earned_balance: sql<number>`frozen_earned_balance + ${-sign * amount}`,
         updated_at: sql<Date>`now()`,
       } as any)
       .where('id', '=', accountId)
-      .where(sql<boolean>`earned_balance >= ${amount}`)
+      .where(guard)
       .returning(['earned_balance', 'frozen_earned_balance'])
       .executeTakeFirst();
     if (!updated) {
       const exists = await trx.selectFrom('accounts').select('id').where('id', '=', accountId).executeTakeFirst();
-      throw new Error(exists ? 'Insufficient earned balance to freeze' : 'Account not found');
+      throw new Error(exists ? insufficient : 'Account not found');
     }
-    // delta=0 audit row: the earned class total did not change, only its
-    // spendable/frozen split. balance_after records the post-freeze spendable.
+    // delta=0 audit row: the earned class total is unchanged, only its
+    // spendable/frozen split. balance_after records the post-move spendable.
     await trx
       .insertInto('credit_ledger')
       .values({
         id: randomUUID(), account_id: accountId, delta: 0,
         balance_after: Number(updated.earned_balance), credit_class: 'earned',
-        reason, ref_id: null, description: opts.description ?? `Froze ${amount} earned credits`,
+        reason, ref_id: null,
+        description: opts.description ?? `${freezing ? 'Froze' : 'Unfroze'} ${amount} earned credits`,
       })
       .execute();
     return { earned_balance: Number(updated.earned_balance), frozen_earned_balance: Number(updated.frozen_earned_balance) };
   });
 }
 
-/** Reverse a freeze: move `amount` from frozen_earned_balance → earned_balance. */
-export async function unfreezeEarned(
-  accountId: string,
-  amount: number,
-  reason: string,
-  opts: { description?: string } = {}
+/** Freeze earned credits: earned_balance → frozen_earned_balance (risk hold). */
+export function freezeEarned(
+  accountId: string, amount: number, reason: string, opts: { description?: string } = {}
 ): Promise<{ earned_balance: number; frozen_earned_balance: number }> {
-  if (!Number.isInteger(amount) || amount <= 0) throw new Error('Amount must be a positive integer');
-  return db.transaction().execute(async (trx) => {
-    const updated = await trx
-      .updateTable('accounts')
-      .set({
-        earned_balance: sql<number>`earned_balance + ${amount}`,
-        frozen_earned_balance: sql<number>`frozen_earned_balance - ${amount}`,
-        updated_at: sql<Date>`now()`,
-      } as any)
-      .where('id', '=', accountId)
-      .where(sql<boolean>`frozen_earned_balance >= ${amount}`)
-      .returning(['earned_balance', 'frozen_earned_balance'])
-      .executeTakeFirst();
-    if (!updated) {
-      const exists = await trx.selectFrom('accounts').select('id').where('id', '=', accountId).executeTakeFirst();
-      throw new Error(exists ? 'Insufficient frozen balance to unfreeze' : 'Account not found');
-    }
-    await trx
-      .insertInto('credit_ledger')
-      .values({
-        id: randomUUID(), account_id: accountId, delta: 0,
-        balance_after: Number(updated.earned_balance), credit_class: 'earned',
-        reason, ref_id: null, description: opts.description ?? `Unfroze ${amount} earned credits`,
-      })
-      .execute();
-    return { earned_balance: Number(updated.earned_balance), frozen_earned_balance: Number(updated.frozen_earned_balance) };
-  });
+  return moveEarnedFrozen('freeze', accountId, amount, reason, opts);
+}
+
+/** Reverse a freeze: frozen_earned_balance → earned_balance. */
+export function unfreezeEarned(
+  accountId: string, amount: number, reason: string, opts: { description?: string } = {}
+): Promise<{ earned_balance: number; frozen_earned_balance: number }> {
+  return moveEarnedFrozen('unfreeze', accountId, amount, reason, opts);
 }
