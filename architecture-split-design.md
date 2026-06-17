@@ -96,10 +96,14 @@ open core ──HTTP──> RemoteRiskEngine client ──> closed risk-engine s
    └─ falls back to NoopRiskEngine when RISK_ENGINE_URL is unset
 ```
 
-**Status:** the interface, the `NoopRiskEngine`, and all four call sites (with their
-fail-open/fail-closed handling) are implemented. The `RemoteRiskEngine` HTTP client
-is not yet written — until it lands, setting `RISK_ENGINE_URL` has no effect and the
-core runs fully on the no-op engine. See the TODO in `backend/src/risk/index.ts`.
+**Status:** fully wired. The interface, the `NoopRiskEngine`, all four call sites
+(`onRegister` in `routes/accounts.ts`; `onPublish` / `onClaim` in
+`services/task/lifecycle.ts`; `onFinalize` in `services/task/settlement.ts`, with
+their fail-open/fail-closed handling), **and** the `RemoteRiskEngine` HTTP client
+(`backend/src/risk/remote.ts`) are implemented. `getRiskEngine()` returns the remote
+client when `RISK_ENGINE_URL` is set and falls back to `NoopRiskEngine` otherwise, so
+the open core runs standalone. Covered by `test/unit/remoteRiskEngine.test.ts` (mocked
+fetch) and `test/integration/remoteRiskEngine.test.cjs` (real stub server round-trip).
 
 ## Why AGPL-3.0
 
