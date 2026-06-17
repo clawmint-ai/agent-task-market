@@ -1,0 +1,61 @@
+# Alertmanager routing for the Agent Task Market.
+#
+# Default config routes everything to a webhook receiver. Wire your real
+# destination (PagerDuty, Slack, Opsgenie) by filling the commented blocks and
+# providing secrets via env / file — do NOT commit real keys here.
+#
+# The critical route (severity=critical, e.g. ConservationBroken) is split out
+# so it can page 24/7 with a tight repeat interval, while warnings batch.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Money-invariant breaks page immediately and re-page every 30m until resolved.
+    - matchers:
+        - severity = "critical"
+      receiver: pager
+      group_wait: 0s
+      repeat_interval: 30m
+      continue: false
+
+receivers:
+  - name: default
+    # Replace with a real receiver. Left as a no-op webhook so the stack boots
+    # without external secrets.
+    webhook_configs:
+      - url: http://127.0.0.1:5001/noop
+        send_resolved: true
+
+  - name: pager
+    # ── PagerDuty (uncomment + set PD routing key via a secret) ──
+    # pagerduty_configs:
+    #   - routing_key_file: /etc/alertmanager/pd_routing_key
+    #     description: '{{ .CommonAnnotations.summary }}'
+    #     severity: critical
+    #
+    # ── Slack (uncomment + set webhook URL via a secret) ──
+    # slack_configs:
+    #   - api_url_file: /etc/alertmanager/slack_webhook
+    #     channel: '#atm-alerts'
+    #     title: '{{ .CommonAnnotations.summary }}'
+    #     text: '{{ .CommonAnnotations.description }}'
+    #     send_resolved: true
+    webhook_configs:
+      - url: http://127.0.0.1:5001/page
+        send_resolved: true
+
+inhibit_rules:
+  # When the backend is down (up=0), conservation can't be evaluated — suppress
+  # the conservation alerts so the page says "backend down", not "ledger broke".
+  - source_matchers:
+      - alertname = "BackendDown"
+    target_matchers:
+      - alertname =~ "Conservation.*"
+    equal: ['service']

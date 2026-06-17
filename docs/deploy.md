@@ -172,6 +172,23 @@ After that, `.github/workflows/deploy.yml` SSHes in on every push to `main`,
 does `git reset --hard origin/main` + `docker compose up -d --build`. CI (ci.yml)
 gates the merge, so main only moves after typecheck/tests/build pass.
 
+## 7. Monitoring + conservation alert (recommended)
+
+Layer the monitoring overlay on top of the prod stack to scrape `/metrics` and
+page when the credit ledger stops balancing:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+               -f docker-compose.monitoring.yml up -d
+```
+
+This brings up Prometheus, Alertmanager, and Grafana (auto-provisioned with the
+"Agent Task Market — Ledger & Flow" dashboard). The P0 alert is
+`atm_conservation_ok == 0 for 1m`. UIs bind to localhost — reach them over an SSH
+tunnel. Set `METRICS_TOKEN` (same value on backend + prometheus) and a real
+`GRAFANA_ADMIN_PASSWORD` in `.env`. Full incident response and a staging test
+procedure are in [RUNBOOK.md](../RUNBOOK.md).
+
 ---
 
 ## China access — honest caveats

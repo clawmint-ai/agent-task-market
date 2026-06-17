@@ -1,0 +1,98 @@
+# Monitoring overlay — Prometheus + Alertmanager + Grafana for the Agent Task
+# Market. Compose to the SAME project as the app so it joins the default network
+# and can reach the backend by service name:
+#
+#   # local (against the demo stack on docker-compose.yml):
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+#   # production (alongside the prod overlay):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.monitoring.yml up -d
+#
+# Prometheus scrapes backend:3000/metrics. If METRICS_TOKEN is set on the
+# backend, set the SAME value in the environment here so the scrape authenticates
+# (the init step renders it into the credentials file Prometheus reads).
+#
+# Ports are published to localhost only (127.0.0.1) so the monitoring UIs are
+# reachable via an SSH tunnel, not the public internet. Put them behind Caddy +
+# auth if you want remote access.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    # Render the metrics-token credentials file from the env (Prometheus config
+    # can't read env directly), then exec the real entrypoint. An empty token
+    # yields an empty file — fine when /metrics is open.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        printf '%s' "$${METRICS_TOKEN:-}" > /etc/prometheus/metrics_token
+        exec /bin/prometheus \
+          --config.file=/etc/prometheus/prometheus.yml \
+          --storage.tsdb.path=/prometheus \
+          --storage.tsdb.retention.time=15d \
+          --web.enable-lifecycle
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:9093/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    environment:
+      # Set a real password in .env for any non-local use.
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
