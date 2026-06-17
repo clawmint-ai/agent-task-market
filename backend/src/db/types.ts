@@ -24,6 +24,7 @@ export interface AccountsTable {
   email: string | null;
   api_key_hash: string;
   compute_source: ComputeSource;
+  signup_ip: ColumnType<string | null, string | null | undefined, string | null>;
   earned_balance: Generated<number>;
   gift_balance: Generated<number>;
   frozen_earned_balance: Generated<number>;
@@ -98,10 +99,24 @@ export interface ReputationEventsTable {
   created_at: Generated<Timestamp>;
 }
 
+export interface RiskFlagsTable {
+  id: string;
+  account_id: string;
+  kind: string;
+  status: Generated<'open' | 'released' | 'frozen'>;
+  ref_id: string | null;
+  amount: Generated<number>;
+  detail: ColumnType<Json, string | Json | undefined, string | Json>;
+  created_at: Generated<Timestamp>;
+  resolved_at: Timestamp | null;
+  resolved_by: string | null;
+}
+
 export interface Database {
   accounts: AccountsTable;
   tasks: TasksTable;
   task_executions: TaskExecutionsTable;
   credit_ledger: CreditLedgerTable;
   reputation_events: ReputationEventsTable;
+  risk_flags: RiskFlagsTable;
 }

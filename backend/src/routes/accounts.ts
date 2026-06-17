@@ -4,6 +4,8 @@ import { getReputationHistory } from '../services/reputationService';
 import { authMiddleware } from '../middleware/auth';
 import { RateLimiter } from '../middleware/rateLimit';
 import { getRiskEngine } from '../risk';
+import { insertRiskFlag } from '../services/riskFlagService';
+import db from '../db/pool';
 import { evaluateRegistration, computeTier, parseAllowedTokenPlans } from '../domain/compliance';
 import { decideRedeem, isRedeemEnabled } from '../domain/redeem';
 import { z } from 'zod';
@@ -56,7 +58,8 @@ export async function accountRoutes(
     }
 
     // Risk seam: closed risk-engine may reject (Sybil/fingerprint) or downgrade
-    // the credit class. Open-source default (Noop) allows all, gift class.
+    // the credit class. Open-source default (Noop) allows all, gift class. The
+    // LocalRiskEngine may flag a same-IP signup burst (reviewSample) without blocking.
     const decision = await getRiskEngine().onRegister({
       type: body.data.type,
       name: body.data.name,
@@ -74,8 +77,24 @@ export async function accountRoutes(
         name: body.data.name,
         email: body.data.email,
         computeSource: check.source,
+        signupIp: req.ip,
         metadata: body.data.metadata,
       });
+      // Record a review flag for a flagged-but-allowed signup (e.g. same-IP burst).
+      // No credits to freeze at registration — amount 0; the flag is an audit signal
+      // the admin can act on. Best-effort: never fail a successful registration on it.
+      if (decision.reviewSample) {
+        try {
+          await insertRiskFlag(db, {
+            accountId: account.id,
+            kind: (decision.flags || [])[0] || 'review',
+            amount: 0,
+            detail: { flags: decision.flags || [], reason: decision.reason, ip: req.ip },
+          });
+        } catch (e) {
+          req.log.warn({ err: e }, 'failed to record registration risk flag');
+        }
+      }
       return reply.status(201).send({
         id: account.id,
         type: account.type,
