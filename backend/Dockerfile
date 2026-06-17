@@ -7,7 +7,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
-# tsc + copies schema.pg.sql into dist/db (see package.json "build").
+# tsc compiles src/ (incl. db/migrations) to dist/ (see package.json "build").
 RUN npm run build
 
 # ── Runtime stage: production deps + compiled output only ───────────────────

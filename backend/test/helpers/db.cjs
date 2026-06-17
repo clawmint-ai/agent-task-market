@@ -4,8 +4,6 @@
 // should run `npm run test:unit` instead.
 
 const { Pool } = require('pg');
-const fs = require('fs');
-const path = require('path');
 
 function makeSchemaName() {
   return 'atm_test_' + Math.random().toString(36).slice(2, 8);
@@ -30,10 +28,12 @@ async function setupSchema() {
   const adminPool = new Pool({ connectionString: RAW });
   await adminPool.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
 
-  const ddl = fs.readFileSync(path.join(__dirname, '..', '..', 'dist', 'db', 'schema.pg.sql'), 'utf8');
-  const scopedPool = new Pool({ connectionString: scopedUrl });
-  await scopedPool.query(ddl);
-  await scopedPool.end();
+  // Build the schema exactly like prod/dev: run the compiled Kysely migrator.
+  // It connects via the scoped DATABASE_URL set above, so every table — plus
+  // its own `kysely_migration` bookkeeping — lands inside this disposable
+  // schema and is dropped wholesale on teardown.
+  const { runMigrations } = require('../../dist/db/pool.js');
+  await runMigrations();
 
   return {
     schema,

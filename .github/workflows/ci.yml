@@ -43,6 +43,17 @@ jobs:
         run: npm run test:integration
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      # Round-trip the migrator against a clean DB: build from zero → roll the
+      # last migration back → re-apply. Proves every migration has a working
+      # `down` and that `up` is repeatable. Runs in the `public` schema (the
+      # integration tests use throwaway schemas, so `public` is still empty).
+      - name: Migration round-trip (up / down / up)
+        run: |
+          npm run migrate
+          npm run migrate:down
+          npm run migrate
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
 
   mcp-server:
     name: mcp-server (typecheck + build)

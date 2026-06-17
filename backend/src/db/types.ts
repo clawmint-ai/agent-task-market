@@ -1,4 +1,4 @@
-// Kysely table interfaces for the Agent Task Market schema (see schema.pg.sql).
+// Kysely table interfaces for the Agent Task Market schema (see db/migrations/).
 // These describe DB row shapes; JSONB columns are typed as their parsed shape.
 
 import type { ColumnType, Generated } from 'kysely';
