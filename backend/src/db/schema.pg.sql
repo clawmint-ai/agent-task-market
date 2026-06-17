@@ -100,6 +100,26 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- risk_flags: audit trail for outcomes the risk engine routed to review
+-- (CLAWMIN-23). One row per flagged settlement. status lifecycle:
+--   'open'     — reward was paid then frozen (frozen_earned_balance), awaiting review
+--   'released' — admin cleared it: frozen credits moved back to earned_balance (spendable)
+--   'frozen'   — admin confirmed the flag: credits stay frozen (out of circulation)
+-- amount/account_id let the admin release path reverse the exact freeze. The freeze
+-- itself writes a delta=0 ledger row (class unchanged), so conservation is unaffected.
+CREATE TABLE IF NOT EXISTS risk_flags (
+  id UUID PRIMARY KEY,
+  account_id UUID NOT NULL REFERENCES accounts(id),
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'released', 'frozen')),
+  ref_id UUID,
+  amount INTEGER NOT NULL DEFAULT 0,
+  detail JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at TIMESTAMPTZ,
+  resolved_by TEXT
+);
+
 CREATE TABLE IF NOT EXISTS reputation_events (
   id UUID PRIMARY KEY,
   account_id UUID NOT NULL REFERENCES accounts(id),
@@ -118,6 +138,9 @@ CREATE INDEX IF NOT EXISTS idx_executions_task ON task_executions(task_id);
 CREATE INDEX IF NOT EXISTS idx_executions_executor ON task_executions(executor_id);
 CREATE INDEX IF NOT EXISTS idx_reputation_account ON reputation_events(account_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_account ON credit_ledger(account_id);
+CREATE INDEX IF NOT EXISTS idx_risk_flags_status ON risk_flags(status);
+CREATE INDEX IF NOT EXISTS idx_risk_flags_account ON risk_flags(account_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_signup_ip ON accounts(signup_ip);
 
 -- ── Idempotent migrations ────────────────────────────────────────────────────
 -- CREATE TABLE IF NOT EXISTS is a no-op on an existing table, so columns added
@@ -125,3 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_ledger_account ON credit_ledger(account_id);
 -- EXISTS is safe to run on every startup. Add new column migrations to this list.
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source JSONB;
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS frozen_earned_balance INTEGER NOT NULL DEFAULT 0;
+-- signup_ip (CLAWMIN-23): client IP captured at registration, used by the risk
+-- engine for same-origin self-dealing / Sybil-cluster detection. Nullable: legacy
+-- rows and trusted/seed accounts created server-side have no IP.
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS signup_ip TEXT;

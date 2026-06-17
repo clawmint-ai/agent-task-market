@@ -11,6 +11,7 @@ export interface Account {
   name: string;
   email: string | null;
   compute_source: ComputeSource;
+  signup_ip: string | null;
   earned_balance: number;
   gift_balance: number;
   frozen_earned_balance: number;
@@ -36,6 +37,7 @@ export async function createAccount(params: {
   name: string;
   email?: string;
   computeSource?: Account['compute_source'];
+  signupIp?: string;
   metadata?: Record<string, unknown>;
 }): Promise<Account & { api_key: string }> {
   const id = randomUUID();
@@ -53,6 +55,7 @@ export async function createAccount(params: {
         email: params.email ?? null,
         api_key_hash: apiKeyHash,
         compute_source: params.computeSource ?? 'unspecified',
+        signup_ip: params.signupIp ?? null,
         gift_balance: SIGNUP_GIFT,
         metadata: JSON.stringify(params.metadata ?? {}),
       })
