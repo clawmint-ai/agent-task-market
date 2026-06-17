@@ -32,10 +32,13 @@ async function taskWithSubmissions(pub, executors) {
     publisherId: pub.id, title: 'rank-me', description: 'compete',
     rewardCredits: 50, maxExecutors: executors.length, verification: { mode: 'manual' },
   });
-  for (const e of executors) {
-    await task.claimTask(t.id, e.id);
-    await task.submitResult({ taskId: t.id, executorId: e.id, result: `r-${e.id}` });
-  }
+  // Claim ALL first, THEN submit. The first submitResult flips task.status to
+  // 'submitted', after which no further claim passes the open/claimed gate
+  // (lifecycle.claimTask requires status 'open'). Mirrors the winner-take-all
+  // pattern in ledger.test.cjs. Submit order is preserved, so the FIFO
+  // tie-break test below still sees 'early' submit before 'late'.
+  for (const e of executors) await task.claimTask(t.id, e.id);
+  for (const e of executors) await task.submitResult({ taskId: t.id, executorId: e.id, result: `r-${e.id}` });
   return t.id;
 }
 
