@@ -1,8 +1,16 @@
 import { FastifyInstance } from 'fastify';
 import { timingSafeEqual } from 'crypto';
 import { collectMetrics, renderPrometheus } from '../services/metricsService';
+import { HttpMetrics, renderBuildInfo } from '../domain/httpMetrics';
 
 const PROM_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8';
+
+// Build identity for atm_build_info. Read once at module load; GIT_SHA is
+// injected at deploy/build time, version falls back to the package version.
+const BUILD_INFO = {
+  version: process.env.APP_VERSION || process.env.npm_package_version || '0.1.0',
+  commit: process.env.GIT_SHA || process.env.GIT_COMMIT || 'unknown',
+};
 
 function safeEqual(a: string, b: string): boolean {
   const ab = Buffer.from(a);
@@ -23,11 +31,12 @@ function safeEqual(a: string, b: string): boolean {
  * Registered at the root (no /api prefix) so it isn't rate-limited and matches the
  * conventional scrape path.
  */
-export async function metricsRoutes(app: FastifyInstance) {
+export async function metricsRoutes(app: FastifyInstance, opts: { httpMetrics: HttpMetrics }) {
   const TOKEN = process.env.METRICS_TOKEN;
   if (!TOKEN) {
     app.log.warn('/metrics is enabled WITHOUT auth (set METRICS_TOKEN to require a scrape token)');
   }
+  const { httpMetrics } = opts;
 
   app.get('/metrics', async (req, reply) => {
     if (TOKEN) {
@@ -40,6 +49,8 @@ export async function metricsRoutes(app: FastifyInstance) {
       }
     }
     const snapshot = await collectMetrics(new Date().toISOString());
-    return reply.header('content-type', PROM_CONTENT_TYPE).send(renderPrometheus(snapshot));
+    const body =
+      renderPrometheus(snapshot) + httpMetrics.render() + renderBuildInfo(BUILD_INFO);
+    return reply.header('content-type', PROM_CONTENT_TYPE).send(body);
   });
 }
