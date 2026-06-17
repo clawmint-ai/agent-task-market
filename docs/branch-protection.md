@@ -51,6 +51,22 @@ work. Choose accordingly:
 
 Prereq: `gh auth login` once, and `REPO=clawmint-ai/agent-task-market`.
 
+### One command (preferred)
+
+[`scripts/branch-protection.sh`](../scripts/branch-protection.sh) is the
+executable source of truth — the check list lives there once, so it can't drift
+from the raw `gh api` blocks below. It is idempotent (re-running `apply`
+converges to the same state) and self-verifies after applying:
+
+```bash
+scripts/branch-protection.sh apply solo   # PUT the SOLO rule, then verify
+scripts/branch-protection.sh apply team   # switch to TEAM once a 2nd maintainer exists
+scripts/branch-protection.sh verify        # read back & assert the gate is live
+```
+
+The raw payloads below are the same thing spelled out by hand, kept for
+reference / UI parity.
+
 ### SOLO preset
 
 ```bash
