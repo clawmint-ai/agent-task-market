@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import {
   evaluateRegistration,
   computeTier,
+  priorityScore,
   parseAllowedTokenPlans,
   COMPUTE_SOURCES,
 } from '../../src/domain/compliance';
@@ -104,4 +105,36 @@ test('parseAllowedTokenPlans trims and drops empties', () => {
 test('COMPUTE_SOURCES excludes unspecified and any oauth variant', () => {
   assert.ok(!COMPUTE_SOURCES.includes('unspecified' as any));
   assert.ok(COMPUTE_SOURCES.every((s) => !s.includes('oauth')));
+});
+
+// --- priorityScore: submission display ranking (CLAWMIN-37) ---
+
+test('priorityScore: Tier 1 wins among equal reputation', () => {
+  const t1 = priorityScore({ reputationScore: 5, computeSource: 'local_model' });
+  const t2 = priorityScore({ reputationScore: 5, computeSource: 'payg_api_key' });
+  const t3 = priorityScore({ reputationScore: 5, computeSource: 'platform_credit' });
+  assert.ok(t1 > t2, 'Tier 1 ranks above Tier 2 at equal reputation');
+  assert.ok(t2 > t3, 'Tier 2 ranks above Tier 3 at equal reputation');
+});
+
+test('priorityScore: reputation is NOT ignored — high-rep Tier 2 beats fresh Tier 1', () => {
+  const freshT1 = priorityScore({ reputationScore: 5, computeSource: 'local_model' }); // 5 + 2.0 = 7.0
+  const highT2 = priorityScore({ reputationScore: 10, computeSource: 'payg_api_key' }); // 10 + 0.5 = 10.5
+  assert.ok(highT2 > freshT1, 'a meaningfully higher reputation outranks the tier bonus');
+});
+
+test('priorityScore: tier bonus only breaks ties within a small reputation gap', () => {
+  // Tier 1 edges out a Tier 2 that is 1.0 reputation ahead (2.0 - 0.5 = 1.5 headroom).
+  const t1 = priorityScore({ reputationScore: 6, computeSource: 'local_model' }); // 8.0
+  const t2 = priorityScore({ reputationScore: 7, computeSource: 'payg_api_key' }); // 7.5
+  assert.ok(t1 > t2);
+  // But a 2.0 gap is enough for Tier 2 to win back.
+  const t2Wins = priorityScore({ reputationScore: 8, computeSource: 'payg_api_key' }); // 8.5
+  assert.ok(t2Wins > t1);
+});
+
+test('priorityScore: token_plan_whitelist (Tier 2) and platform_credit (Tier 3) bonuses', () => {
+  assert.strictEqual(priorityScore({ reputationScore: 0, computeSource: 'token_plan_whitelist' }), 0.5);
+  assert.strictEqual(priorityScore({ reputationScore: 0, computeSource: 'platform_credit' }), 0);
+  assert.strictEqual(priorityScore({ reputationScore: 0, computeSource: 'local_model' }), 2.0);
 });

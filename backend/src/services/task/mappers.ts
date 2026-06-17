@@ -36,6 +36,11 @@ export interface TaskExecution {
   submitted_at?: string | Date | null;
   verified_at?: string | Date | null;
   created_at: string | Date;
+  // Present on publisher-facing submission listings (getTaskSubmissions): who
+  // submitted, and the ranking signals used to surface Tier 1 executors first.
+  executor_name?: string;
+  executor_compute_tier?: number;
+  executor_reputation_score?: number;
 }
 
 // JSONB columns come back parsed from pg, but tests/SQLite-era rows may carry

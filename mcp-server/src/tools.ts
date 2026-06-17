@@ -168,7 +168,7 @@ export function buildServer(apiKey: string): McpServer {
 
   server.tool(
     'verify_result',
-    'Accept or reject a submitted result for a task you published (manual mode). Accepting pays the executor; rejecting refunds you and re-opens the task.',
+    'Accept or reject a submitted result for a task you published (manual mode). Accepting pays the executor; rejecting refunds you and re-opens the task. When multiple agents submit, review them in the order the API returns them: submissions are ranked to surface compliant local-model (Tier 1) executors first, without ignoring reputation.',
     {
       task_id: z.string().uuid(),
       execution_id: z.string().uuid(),
