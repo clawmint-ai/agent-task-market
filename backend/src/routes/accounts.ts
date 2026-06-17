@@ -1,10 +1,13 @@
 import { FastifyInstance } from 'fastify';
-import { createAccount, getAccountById, getCreditHistory, rotateApiKey } from '../services/accountService';
+import { createAccount, getAccountById, getCreditHistory, rotateApiKey, redeemEarned } from '../services/accountService';
 import { getReputationHistory } from '../services/reputationService';
 import { authMiddleware } from '../middleware/auth';
 import { RateLimiter } from '../middleware/rateLimit';
 import { getRiskEngine } from '../risk';
+import { insertRiskFlag } from '../services/riskFlagService';
+import db from '../db/pool';
 import { evaluateRegistration, computeTier, parseAllowedTokenPlans } from '../domain/compliance';
+import { decideRedeem, isRedeemEnabled } from '../domain/redeem';
 import { z } from 'zod';
 
 // compute_source is accepted as a free string and validated in the compliance
@@ -55,7 +58,8 @@ export async function accountRoutes(
     }
 
     // Risk seam: closed risk-engine may reject (Sybil/fingerprint) or downgrade
-    // the credit class. Open-source default (Noop) allows all, gift class.
+    // the credit class. Open-source default (Noop) allows all, gift class. The
+    // LocalRiskEngine may flag a same-IP signup burst (reviewSample) without blocking.
     const decision = await getRiskEngine().onRegister({
       type: body.data.type,
       name: body.data.name,
@@ -73,8 +77,24 @@ export async function accountRoutes(
         name: body.data.name,
         email: body.data.email,
         computeSource: check.source,
+        signupIp: req.ip,
         metadata: body.data.metadata,
       });
+      // Record a review flag for a flagged-but-allowed signup (e.g. same-IP burst).
+      // No credits to freeze at registration — amount 0; the flag is an audit signal
+      // the admin can act on. Best-effort: never fail a successful registration on it.
+      if (decision.reviewSample) {
+        try {
+          await insertRiskFlag(db, {
+            accountId: account.id,
+            kind: (decision.flags || [])[0] || 'review',
+            amount: 0,
+            detail: { flags: decision.flags || [], reason: decision.reason, ip: req.ip },
+          });
+        } catch (e) {
+          req.log.warn({ err: e }, 'failed to record registration risk flag');
+        }
+      }
       return reply.status(201).send({
         id: account.id,
         type: account.type,
@@ -109,6 +129,7 @@ export async function accountRoutes(
       compute_tier: computeTier(a.compute_source),
       gift_balance: a.gift_balance,
       earned_balance: a.earned_balance,
+      frozen_earned: a.frozen_earned_balance,
       credit_balance: a.gift_balance + a.earned_balance,
       reputation_score: a.reputation_score,
       total_tasks_published: a.total_tasks_published,
@@ -123,8 +144,33 @@ export async function accountRoutes(
       balance: req.account.gift_balance + req.account.earned_balance,
       gift_balance: req.account.gift_balance,
       earned_balance: req.account.earned_balance,
+      // Three-field view (CLAWMIN-19): earned = spendable+redeemable,
+      // gift = publish-only, frozen_earned = held by risk review (neither).
+      earned: req.account.earned_balance,
+      gift: req.account.gift_balance,
+      frozen_earned: req.account.frozen_earned_balance,
       history: await getCreditHistory(req.account.id),
     };
+  });
+
+  // Redeem earned credits for value (API quota / withdrawal). HARD-LOCKED behind
+  // REDEEM_ENABLED until the exit is audited — returns 403 while disabled. Gift and
+  // frozen credits never redeem (the money-pump guard). See domain/redeem.ts.
+  const RedeemSchema = z.object({ amount: z.number().int().positive() });
+  app.post('/accounts/me/redeem', { preHandler: authMiddleware }, async (req, reply) => {
+    const body = RedeemSchema.safeParse(req.body);
+    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
+
+    const decision = decideRedeem({
+      enabled: isRedeemEnabled(process.env.REDEEM_ENABLED),
+      creditClass: 'earned',
+      amount: body.data.amount,
+      earnedBalance: req.account.earned_balance,
+    });
+    if (!decision.allow) return reply.status(decision.status).send({ error: decision.reason });
+
+    const earned_balance = await redeemEarned(req.account.id, body.data.amount);
+    return { redeemed: body.data.amount, earned_balance, message: 'Redeemed earned credits' };
   });
 
   // Rotate API key — invalidates the current key immediately and returns a new one.

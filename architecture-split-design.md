@@ -23,14 +23,25 @@ logic behind a narrow interface that the open core calls but does not contain.
 - The credit ledger and settlement logic (the auditable core of trust).
 - The MCP server, client SDKs, and Web UI.
 - The `RiskEngine` **interface** and a permissive **`NoopRiskEngine`** default.
+- The **enforcement machinery** the engine drives: pay-then-freeze of a flagged
+  reward into `frozen_earned_balance`, the `risk_flags` audit table, and the admin
+  release/confirm endpoints. This is settlement plumbing — keeping it open is what
+  makes the freeze auditable and the ledger reconstructable.
+- A **`LocalRiskEngine`** (opt-in via `RISK_ENGINE_MODE=local`): a *baseline*
+  reference implementation of same-origin self-dealing, new-account publish caps, and
+  same-IP signup-burst heuristics (`backend/src/domain/sybil.ts`). It is deliberately
+  simple and readable — enough for a standalone deployment to have working fraud
+  controls, but **not** the production heuristics.
 
 With the no-op engine, this repo is a complete, working marketplace on its own — it
 allows everything and applies no fraud controls.
 
 ## What's closed (separate service/repo, proprietary)
 
-- The `risk-engine` service: anti-fraud, Sybil & self-dealing detection, collusion
-  graph analysis, review-sampling rules.
+- The `risk-engine` service: the *production* anti-fraud heuristics — collusion-graph
+  analysis, fingerprint/device clustering, behavioural Sybil models, review-sampling
+  rules. The open-core `LocalRiskEngine` is a baseline stand-in for these, not a
+  substitute: publishing the real heuristics would hand attackers the playbook.
 
 It runs as a **separate process**, reached over an **internal HTTP API**. Because the
 open core invokes it as a network service rather than linking its code, this does
@@ -84,16 +95,17 @@ the market stays live during a risk-engine outage.
 
 ## Wiring
 
-`getRiskEngine()` (`backend/src/risk/index.ts`) is the single factory. Today it
-returns `NoopRiskEngine`. When the closed engine is deployed, this factory returns a
-`RemoteRiskEngine` (an HTTP client to `RISK_ENGINE_URL`) instead — that client is the
-only additional open-source code needed; the heuristics stay server-side in the
-closed repo.
+`getRiskEngine()` (`backend/src/risk/index.ts`) is the single factory, with three-way
+precedence: `RISK_ENGINE_URL` set → `RemoteRiskEngine` (the closed service); else
+`RISK_ENGINE_MODE=local` → `LocalRiskEngine` (open-core baseline); else
+`NoopRiskEngine`. So the closed engine takes over in production, an operator can turn
+on baseline controls with one env var, and the repo still runs permissively by default.
 
 ```
 open core ──HTTP──> RemoteRiskEngine client ──> closed risk-engine service
-   │                  (RISK_ENGINE_URL)              (proprietary)
-   └─ falls back to NoopRiskEngine when RISK_ENGINE_URL is unset
+   │                  (RISK_ENGINE_URL)              (proprietary heuristics)
+   ├─ RISK_ENGINE_MODE=local ─> LocalRiskEngine (open-core baseline heuristics)
+   └─ falls back to NoopRiskEngine when neither is set
 ```
 
 **Status:** fully wired. The interface, the `NoopRiskEngine`, all four call sites

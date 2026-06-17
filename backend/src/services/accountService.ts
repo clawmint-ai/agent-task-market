@@ -11,8 +11,10 @@ export interface Account {
   name: string;
   email: string | null;
   compute_source: ComputeSource;
+  signup_ip: string | null;
   earned_balance: number;
   gift_balance: number;
+  frozen_earned_balance: number;
   reputation_score: number;
   total_tasks_published: number;
   total_tasks_completed: number;
@@ -35,6 +37,7 @@ export async function createAccount(params: {
   name: string;
   email?: string;
   computeSource?: Account['compute_source'];
+  signupIp?: string;
   metadata?: Record<string, unknown>;
 }): Promise<Account & { api_key: string }> {
   const id = randomUUID();
@@ -52,6 +55,7 @@ export async function createAccount(params: {
         email: params.email ?? null,
         api_key_hash: apiKeyHash,
         compute_source: params.computeSource ?? 'unspecified',
+        signup_ip: params.signupIp ?? null,
         gift_balance: SIGNUP_GIFT,
         metadata: JSON.stringify(params.metadata ?? {}),
       })
@@ -199,6 +203,23 @@ export async function creditCredits(
   return newBalance;
 }
 
+/**
+ * Redeem earned credits — the value exit. Atomically debits earned_balance with a
+ * guarded decrement (can't go negative) and records a 'redeem' ledger row, so
+ * conservation holds (redeemed credits leave the earned class via a real -delta).
+ * The POLICY gate (REDEEM_ENABLED, class==earned, amount bounds) lives in
+ * domain/redeem.ts and must be checked by the caller BEFORE this runs; this is the
+ * persistence step only. Returns the new earned_balance.
+ */
+export async function redeemEarned(accountId: string, amount: number): Promise<number> {
+  return db.transaction().execute(async (trx) =>
+    debitCredits(trx, accountId, amount, 'redeem', {
+      creditClass: 'earned',
+      description: `Redeemed ${amount} earned credits`,
+    })
+  );
+}
+
 export async function getCreditHistory(accountId: string) {
   return db
     .selectFrom('credit_ledger')
@@ -237,4 +258,75 @@ export async function debitForPublish(
     await debitCredits(conn, accountId, fromEarned, reason, { ...opts, creditClass: 'earned' });
   }
   return { gift: fromGift, earned: fromEarned };
+}
+
+/**
+ * Move `amount` of earned credits between earned_balance and
+ * frozen_earned_balance. Risk review freezes suspicious earned credits to hold
+ * them out of circulation (unspendable, unredeemable) pending manual/risk
+ * clearance; unfreeze reverses it. The credit class is unchanged ('earned'), so
+ * this writes NO net ledger delta — only a delta=0 audit row. Conservation per
+ * class therefore stays Σledger(earned) == earned_balance + frozen_earned_balance
+ * (see reconcileService). Atomic + guarded on the drained column so neither
+ * balance can go negative under concurrency.
+ */
+async function moveEarnedFrozen(
+  direction: 'freeze' | 'unfreeze',
+  accountId: string,
+  amount: number,
+  reason: string,
+  opts: { description?: string }
+): Promise<{ earned_balance: number; frozen_earned_balance: number }> {
+  if (!Number.isInteger(amount) || amount <= 0) throw new Error('Amount must be a positive integer');
+  const freezing = direction === 'freeze';
+  const sign = freezing ? -1 : 1; // freeze: earned↓ frozen↑ ; unfreeze: earned↑ frozen↓
+  const guard = freezing
+    ? sql<boolean>`earned_balance >= ${amount}`
+    : sql<boolean>`frozen_earned_balance >= ${amount}`;
+  const insufficient = freezing
+    ? 'Insufficient earned balance to freeze'
+    : 'Insufficient frozen balance to unfreeze';
+  return db.transaction().execute(async (trx) => {
+    const updated = await trx
+      .updateTable('accounts')
+      .set({
+        earned_balance: sql<number>`earned_balance + ${sign * amount}`,
+        frozen_earned_balance: sql<number>`frozen_earned_balance + ${-sign * amount}`,
+        updated_at: sql<Date>`now()`,
+      } as any)
+      .where('id', '=', accountId)
+      .where(guard)
+      .returning(['earned_balance', 'frozen_earned_balance'])
+      .executeTakeFirst();
+    if (!updated) {
+      const exists = await trx.selectFrom('accounts').select('id').where('id', '=', accountId).executeTakeFirst();
+      throw new Error(exists ? insufficient : 'Account not found');
+    }
+    // delta=0 audit row: the earned class total is unchanged, only its
+    // spendable/frozen split. balance_after records the post-move spendable.
+    await trx
+      .insertInto('credit_ledger')
+      .values({
+        id: randomUUID(), account_id: accountId, delta: 0,
+        balance_after: Number(updated.earned_balance), credit_class: 'earned',
+        reason, ref_id: null,
+        description: opts.description ?? `${freezing ? 'Froze' : 'Unfroze'} ${amount} earned credits`,
+      })
+      .execute();
+    return { earned_balance: Number(updated.earned_balance), frozen_earned_balance: Number(updated.frozen_earned_balance) };
+  });
+}
+
+/** Freeze earned credits: earned_balance → frozen_earned_balance (risk hold). */
+export function freezeEarned(
+  accountId: string, amount: number, reason: string, opts: { description?: string } = {}
+): Promise<{ earned_balance: number; frozen_earned_balance: number }> {
+  return moveEarnedFrozen('freeze', accountId, amount, reason, opts);
+}
+
+/** Reverse a freeze: frozen_earned_balance → earned_balance. */
+export function unfreezeEarned(
+  accountId: string, amount: number, reason: string, opts: { description?: string } = {}
+): Promise<{ earned_balance: number; frozen_earned_balance: number }> {
+  return moveEarnedFrozen('unfreeze', accountId, amount, reason, opts);
 }

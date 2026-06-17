@@ -1,8 +1,10 @@
 import { sql, Transaction } from 'kysely';
+import { randomUUID } from 'crypto';
 import db, { withTransaction } from '../../db/pool';
 import type { Database } from '../../db/types';
 import { creditCredits } from '../accountService';
 import { applyReputation } from '../reputationService';
+import { insertRiskFlag } from '../riskFlagService';
 import { decideFinalize, decideReclaim, decideStaleRelease } from '../../domain/settlement';
 import { TaskExecution, parseExecution } from './mappers';
 import { getRiskEngine } from '../../risk';
@@ -150,6 +152,52 @@ export async function finalizeExecution(params: {
         description: `Reward for completing task: ${task.title}`,
         creditClass: action.rewardClass,
       });
+      // Risk review (CLAWMIN-23): the engine flagged this payout (e.g. same-IP
+      // self-dealing) via reviewSample. We PAY then immediately FREEZE the reward —
+      // it's credited to the earned ledger (conservation holds) but moved out of the
+      // spendable/redeemable balance into frozen_earned_balance, pending admin review.
+      // The freeze is a delta=0 move within the 'earned' class, atomic with the payout.
+      let frozenForReview = false;
+      if (finalizeDecision.reviewSample) {
+        const frz = await trx
+          .updateTable('accounts')
+          .set({
+            earned_balance: sql<number>`earned_balance - ${task.reward_credits}`,
+            frozen_earned_balance: sql<number>`frozen_earned_balance + ${task.reward_credits}`,
+            updated_at: sql<Date>`now()`,
+          } as any)
+          .where('id', '=', updated.executor_id)
+          .where(sql<boolean>`earned_balance >= ${task.reward_credits}`)
+          .returning(['earned_balance'])
+          .executeTakeFirst();
+        if (!frz) throw new Error('Cannot freeze reward for review: insufficient earned balance');
+        await trx
+          .insertInto('credit_ledger')
+          .values({
+            id: randomUUID(),
+            account_id: updated.executor_id,
+            delta: 0,
+            balance_after: Number(frz.earned_balance),
+            credit_class: 'earned',
+            reason: 'risk_freeze',
+            ref_id: task.id,
+            description: `Reward held for review: ${(finalizeDecision.flags || []).join(',') || 'flagged'}`,
+          })
+          .execute();
+        await insertRiskFlag(trx, {
+          accountId: updated.executor_id,
+          kind: (finalizeDecision.flags || [])[0] || 'review',
+          refId: task.id,
+          amount: task.reward_credits,
+          detail: {
+            flags: finalizeDecision.flags || [],
+            reason: finalizeDecision.reason,
+            executionId: params.executionId,
+            publisherId: task.publisher_id,
+          },
+        });
+        frozenForReview = true;
+      }
       await trx
         .updateTable('accounts')
         .set((eb) => ({ total_tasks_completed: eb('total_tasks_completed', '+', 1) }))
@@ -175,7 +223,12 @@ export async function finalizeExecution(params: {
         .where('status', 'in', ['in_progress', 'submitted'])
         .execute();
       // Winner is always paid as EARNED (redeemable) — see creditCredits call above.
-      settled = { event: 'pay_winner', gift: 0, earned: task.reward_credits, executorId: updated.executor_id };
+      settled = {
+        event: frozenForReview ? 'pay_winner_held' : 'pay_winner',
+        gift: 0,
+        earned: task.reward_credits,
+        executorId: updated.executor_id,
+      };
       return;
     }
 
