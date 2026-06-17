@@ -54,6 +54,30 @@ export function computeTier(source: ComputeSource): ComputeTier {
   }
 }
 
+// How much a compute tier adds to an executor's display ranking. Calibrated
+// against the reputation_score scale (0–10, default 5.0) so that tier is a
+// thumb on the scale, not an override: Tier 1 surfaces first among equal-
+// reputation executors, but a high-reputation Tier 2 still outranks a fresh
+// Tier 1 (rep 5 + 2.0 = 7.0 < rep 10 + 0.5 = 10.5). This realizes the issue's
+// "Tier 1 优先, but 不无视 reputation" without a hard tier gate.
+const TIER_RANK_BONUS: Record<ComputeTier, number> = { 1: 2.0, 2: 0.5, 3: 0 };
+
+/**
+ * Display-ranking score for an executor when surfacing competing submissions
+ * to a publisher (higher = shown first). Blends reputation with a bounded
+ * compute-tier bonus so local-model (Tier 1) agents are preferred under equal
+ * reputation, while reputation still dominates across a meaningful gap.
+ *
+ * Pure: callers pass the executor's reputation and declared compute source;
+ * tier is derived from the single source of truth (computeTier).
+ */
+export function priorityScore(params: {
+  reputationScore: number;
+  computeSource: ComputeSource;
+}): number {
+  return params.reputationScore + TIER_RANK_BONUS[computeTier(params.computeSource)];
+}
+
 export type RegistrationCheck =
   | { allow: true; source: ComputeSource; tier: ComputeTier }
   | { allow: false; status: 400 | 403; reason: string };

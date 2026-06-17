@@ -1,5 +1,7 @@
 import db from '../../db/pool';
 import { Task, parseTask, parseExecution } from './mappers';
+import { computeTier, priorityScore } from '../../domain/compliance';
+import type { ComputeSource } from '../../db/types';
 
 export async function listTasks(params: {
   status?: string;
@@ -68,11 +70,33 @@ export async function getTaskSubmissions(taskId: string, publisherId: string) {
     .selectFrom('task_executions as te')
     .innerJoin('accounts as a', 'a.id', 'te.executor_id')
     .selectAll('te')
-    .select('a.name as executor_name')
+    .select(['a.name as executor_name', 'a.compute_source as executor_compute_source', 'a.reputation_score as executor_reputation_score'])
     .where('te.task_id', '=', taskId)
-    .orderBy('te.submitted_at', 'desc')
     .execute();
-  return rows.map(parseExecution);
+
+  // Surface Tier 1 (local-model) executors first when a publisher reviews
+  // competing submissions, without ignoring reputation (CLAWMIN-37,承接 20 §4).
+  // Ranking is a pure blend (domain/compliance.priorityScore); ties fall back to
+  // earliest submission so the original FIFO order is preserved within a tier.
+  // compute_source / reputation_score are NOT NULL (schema defaults), guaranteed
+  // by the inner join; submitted_at is null for not-yet-submitted (in_progress)
+  // rows, which sort last within their tier.
+  const ranked = rows
+    .map((r) => {
+      const source = r.executor_compute_source as ComputeSource;
+      return {
+        row: r,
+        score: priorityScore({ reputationScore: r.executor_reputation_score, computeSource: source }),
+        tier: computeTier(source),
+        submittedAt: r.submitted_at ? new Date(r.submitted_at as any).getTime() : Number.MAX_SAFE_INTEGER,
+      };
+    })
+    .sort((x, y) => y.score - x.score || x.submittedAt - y.submittedAt);
+
+  return ranked.map(({ row, tier }) => {
+    const { executor_compute_source, ...rest } = row as any;
+    return { ...parseExecution(rest), executor_compute_tier: tier };
+  });
 }
 
 export async function getMyPublished(publisherId: string, limit = 20, offset = 0) {
