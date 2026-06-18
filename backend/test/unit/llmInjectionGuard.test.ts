@@ -19,6 +19,8 @@ afterEach(() => {
   delete process.env.LLM_API_URL;
   delete process.env.LLM_API_KEY;
   delete process.env.LLM_DOUBLE_JUDGE_CREDITS;
+  delete process.env.LLM_CREDITS_PER_1K_TOKENS;
+  delete process.env.LLM_MAX_COST_RATIO;
 });
 
 function withLLM() {
@@ -131,5 +133,48 @@ test('low-value task uses a single judge', async () => {
 
   const r = await autoVerify(cfg, 'submission', {}, 50); // <= 100
   assert.equal(calls, 1, 'single judge for a low-value task');
+  assert.equal(r.passed, true);
+});
+
+test('cost cap: when priced grading would exceed 30% of reward, route to manual without calling the LLM', async () => {
+  withLLM();
+  // Absurdly expensive token price so even a tiny prompt blows the budget.
+  process.env.LLM_CREDITS_PER_1K_TOKENS = '1000';
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    return judgeReply({ score: 8, reasoning: 'ok' });
+  }) as typeof fetch;
+
+  const r = await autoVerify(cfg, 'submission', {}, 5); // small reward
+  assert.equal(calls, 0, 'over-budget never spends a token (pre-call guard)');
+  assert.equal((r.detail as any).fallback, 'manual', 'too-expensive grading → manual');
+  assert.ok((r.detail as any).estCredits > (r.detail as any).budget, 'estimate exceeds budget');
+});
+
+test('cost cap: within budget the judge is still called', async () => {
+  withLLM();
+  process.env.LLM_CREDITS_PER_1K_TOKENS = '1'; // cheap
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    return judgeReply({ score: 8, reasoning: 'ok' });
+  }) as typeof fetch;
+
+  const r = await autoVerify(cfg, 'submission', {}, 80); // generous, but below double-judge threshold
+  assert.equal(calls, 1, 'within budget → judge runs');
+  assert.equal(r.passed, true);
+});
+
+test('cost cap is skipped when tokens are unpriced (LLM_CREDITS_PER_1K_TOKENS unset)', async () => {
+  withLLM(); // no pricing env → cap can't apply
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    return judgeReply({ score: 8, reasoning: 'ok' });
+  }) as typeof fetch;
+
+  const r = await autoVerify(cfg, 'submission', {}, 1); // tiny reward, but no pricing
+  assert.equal(calls, 1, 'no pricing → cap disabled, judge runs normally');
   assert.equal(r.passed, true);
 });

@@ -376,6 +376,35 @@ async function verifyLLM(
   const doubleJudgeAt = Number(process.env.LLM_DOUBLE_JUDGE_CREDITS) || 100;
   const useDoubleJudge = (rewardCredits ?? 0) > doubleJudgeAt;
 
+  // Cost cap (CLAWMIN-24): auto_llm only pays off if grading costs materially less
+  // than the bounty it guards. Estimate spend up-front and, if it would exceed a
+  // fraction of the reward, route to manual instead of burning tokens that
+  // approach the reward itself. Pre-call, so the over-budget case never spends.
+  // Pricing is deployment-specific: LLM_CREDITS_PER_1K_TOKENS=0 (default) means
+  // tokens aren't priced in credits, so the cap can't be enforced and is skipped.
+  const creditsPer1k = Number(process.env.LLM_CREDITS_PER_1K_TOKENS) || 0;
+  const costRatio = Number(process.env.LLM_MAX_COST_RATIO) || 0.3;
+  if (creditsPer1k > 0 && (rewardCredits ?? 0) > 0) {
+    const calls = useDoubleJudge ? 2 : 1;
+    // ~4 chars/token for input; reserve headroom for the model's JSON verdict.
+    const estTokens = (Math.ceil(prompt.length / 4) + 256) * calls;
+    const estCredits = (estTokens / 1000) * creditsPer1k;
+    const budget = (rewardCredits ?? 0) * costRatio;
+    if (estCredits > budget) {
+      return {
+        passed: false,
+        score: 0,
+        detail: {
+          error: `auto_llm cost (~${estCredits.toFixed(1)} cr) exceeds ${Math.round(costRatio * 100)}% of reward (${budget.toFixed(1)} cr); routing to manual`,
+          fallback: 'manual',
+          estCredits: Number(estCredits.toFixed(2)),
+          budget: Number(budget.toFixed(2)),
+          ...(flags.length ? { flags } : {}),
+        },
+      };
+    }
+  }
+
   try {
     if (useDoubleJudge) {
       // Two independent judges; pass only if BOTH clear the threshold. An
