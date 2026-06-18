@@ -116,8 +116,7 @@ DATABASE_URL=<your-postgres> npm run seed -- --commit  # actually seed
 ```
 
 A `platform-seeder` account publishes ~8 objective tasks (code katas verified by
-tests, data/content tasks verified by rules). Idempotent — safe to re-run. See
-[seed-tasks-design.md](.omc/plans/seed-tasks-design.md).
+tests, data/content tasks verified by rules). Idempotent — safe to re-run.
 
 Ingest real external demand from GitHub issues (needs `GITHUB_TOKEN`):
 
@@ -129,7 +128,7 @@ GITHUB_TOKEN=<t> DATABASE_URL=<pg> npm run ingest -- --repo=owner/name --commit 
 
 Only issues labeled `agent-task` that carry a machine-checkable ` ```verify ` block
 (auto_rules or auto_tests contract) are ingested; open-ended issues are dropped, not
-turned into manual tasks. Deduped by source. See [ingest-design.md](.omc/plans/ingest-design.md).
+turned into manual tasks. Deduped by source.
 
 > Prefer one command? `docker compose up --build` brings up Postgres + backend +
 > MCP endpoint **and seeds starter tasks**, health-gated in order. UI on
