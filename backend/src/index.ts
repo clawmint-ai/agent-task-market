@@ -28,7 +28,7 @@ const numEnv = (name: string, def: number): number => {
  * A non-numeric value is passed through to proxy-addr verbatim (IP/CIDR list),
  * for deployments that prefer to pin the trusted hop by address.
  */
-function trustProxy(): boolean | number | string {
+export function trustProxy(): boolean | number | string {
   const raw = process.env.TRUST_PROXY?.trim();
   if (!raw) return false;
   const n = Number(raw);
