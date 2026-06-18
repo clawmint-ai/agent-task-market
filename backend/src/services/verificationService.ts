@@ -45,18 +45,75 @@ export async function autoVerify(
   }
 }
 
+// ── ReDoS-safe regex (CLAWMIN-42) ────────────────────────────────────────────
+// Publisher-supplied regex is untrusted: a catastrophic-backtracking pattern
+// like (a+)+$ against a crafted submission can pin the main event loop forever
+// (RegExp.test is synchronous and uninterruptible), freezing the whole single-
+// instance API — a free-account DoS. We run the match in a worker thread and
+// terminate() it on timeout: a thread stuck in backtracking is forcibly killed,
+// so the event loop is never blocked. Dependency-free (no re2 native build,
+// which the slim runtime image can't compile); identical under tsx and dist.
+import { Worker } from 'worker_threads';
+
+/** Per-rule regex match budget. Past this the worker is killed and the rule fails. */
+export const REGEX_TIMEOUT_MS = Number(process.env.REGEX_TIMEOUT_MS) || 1000;
+
+// Inlined worker source (eval:true) — no separate file to resolve in dist/.
+// Compiles the pattern and tests the input; posts the boolean back. A compile
+// error (bad pattern) posts an error so the caller treats the rule as failed.
+const REGEX_WORKER_SRC = `
+const { parentPort, workerData } = require('worker_threads');
+try {
+  const re = new RegExp(workerData.pattern);
+  parentPort.postMessage({ ok: true, passed: re.test(workerData.input) });
+} catch (e) {
+  parentPort.postMessage({ ok: false, error: String(e && e.message || e) });
+}
+`;
+
+/**
+ * Test `input` against `pattern` with a hard wall-clock timeout, off the main
+ * loop. Resolves { passed } on completion, { timedOut: true } if the budget is
+ * exceeded (worker terminated), or { error } if the pattern won't compile.
+ */
+export function safeRegexTest(
+  pattern: string,
+  input: string,
+  timeoutMs: number = REGEX_TIMEOUT_MS
+): Promise<{ passed: boolean; timedOut?: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const worker = new Worker(REGEX_WORKER_SRC, { eval: true, workerData: { pattern, input } });
+    let settled = false;
+    const done = (r: { passed: boolean; timedOut?: boolean; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      void worker.terminate();
+      resolve(r);
+    };
+    const timer = setTimeout(() => done({ passed: false, timedOut: true }), timeoutMs);
+    if (typeof timer.unref === 'function') timer.unref();
+    worker.on('message', (m: { ok: boolean; passed?: boolean; error?: string }) =>
+      done(m.ok ? { passed: !!m.passed } : { passed: false, error: m.error })
+    );
+    worker.on('error', (e) => done({ passed: false, error: String(e?.message || e) }));
+    worker.on('exit', () => done({ passed: false }));
+  });
+}
+
 // ── Rule-based verification ──────────────────────────────────────────────────
-function verifyRules(
+async function verifyRules(
   rules: VerificationRule[],
   result: string,
   meta: Record<string, unknown>
-): VerificationResult {
+): Promise<VerificationResult> {
   if (rules.length === 0) {
     return { passed: false, score: 0, detail: { error: 'No rules defined' } };
   }
-  const checks: Array<{ rule: VerificationRule; passed: boolean }> = [];
+  const checks: Array<{ rule: VerificationRule; passed: boolean; regexTimeout?: boolean }> = [];
   for (const rule of rules) {
     let passed = false;
+    let regexTimeout = false;
     try {
       switch (rule.type) {
         case 'contains':
@@ -65,9 +122,14 @@ function verifyRules(
         case 'not_contains':
           passed = !result.includes(String(rule.value));
           break;
-        case 'regex':
-          passed = new RegExp(String(rule.value)).test(result);
+        case 'regex': {
+          // Off-loop, timeout-bounded: a ReDoS pattern can no longer freeze the
+          // server — it times out and the rule simply fails.
+          const r = await safeRegexTest(String(rule.value), result);
+          passed = r.passed;
+          regexTimeout = !!r.timedOut;
           break;
+        }
         case 'min_length':
           passed = result.length >= Number(rule.value);
           break;
@@ -80,7 +142,7 @@ function verifyRules(
     } catch {
       passed = false;
     }
-    checks.push({ rule, passed });
+    checks.push(regexTimeout ? { rule, passed, regexTimeout } : { rule, passed });
   }
   const passedCount = checks.filter((c) => c.passed).length;
   const allPassed = passedCount === checks.length;
