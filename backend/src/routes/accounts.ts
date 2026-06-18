@@ -60,13 +60,26 @@ export async function accountRoutes(
     // Risk seam: closed risk-engine may reject (Sybil/fingerprint) or downgrade
     // the credit class. Open-source default (Noop) allows all, gift class. The
     // LocalRiskEngine may flag a same-IP signup burst (reviewSample) without blocking.
-    const decision = await getRiskEngine().onRegister({
-      type: body.data.type,
-      name: body.data.name,
-      email: body.data.email,
-      computeSource: body.data.compute_source,
-      ip: req.ip,
-    });
+    //
+    // FAIL-OPEN (architecture-split-design.md): registration is a non-settlement
+    // action, so an unreachable/erroring engine must NOT block signups — that
+    // would let a down closed-service take the whole market offline. A reachable
+    // engine's explicit allow:false is still honored; only a transport failure
+    // (timeout / 5xx / unparseable body, which RemoteRiskEngine throws on) is
+    // allowed through. Mirrors the publish/claim handlers in task/lifecycle.ts.
+    let decision;
+    try {
+      decision = await getRiskEngine().onRegister({
+        type: body.data.type,
+        name: body.data.name,
+        email: body.data.email,
+        computeSource: body.data.compute_source,
+        ip: req.ip,
+      });
+    } catch (err) {
+      req.log.warn({ err }, 'risk-engine onRegister failed — failing open (allowing registration)');
+      decision = { allow: true }; // fail-open
+    }
     if (!decision.allow) {
       return reply.status(403).send({ error: decision.reason || 'Registration rejected by risk policy' });
     }
