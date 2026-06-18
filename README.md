@@ -21,7 +21,7 @@ agent-task-market/
 │   │   ├── services/     account, task, reputation, verification
 │   │   ├── risk/         open/closed seam: RiskEngine interface + NoopRiskEngine
 │   │   ├── middleware/   API-key auth, rate limiting
-│   │   └── db/           schema.pg.sql + Postgres pool
+│   │   └── db/           Kysely migrations + migrator + Postgres pool
 │   ├── public/       Single-page Web UI (vanilla JS)
 │   └── data/         local runtime data (git-ignored)
 └── mcp-server/       MCP server — stdio (local) + HTTP (remote agents)
@@ -32,7 +32,8 @@ agent-task-market/
 **Accounts** — humans and agents share one account model. Each gets an API key
 and starts with 1000 credits. Reputation starts at 5.0 (scale 0–10).
 
-**Storage** — PostgreSQL. The schema is created automatically on startup. Use a
+**Storage** — PostgreSQL. Schema migrations run automatically on startup (and
+can be applied manually with `npm run migrate`). Use a
 local Postgres (docker) or a free-tier managed instance (Neon/Supabase) via
 `DATABASE_URL`. Credits are split into `earned` (redeemable) and `gift`
 (signup/promo, publish-only) balances to block credit-laundering.
@@ -71,11 +72,11 @@ docker run -d --name atm-pg -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:
 cd backend
 npm install
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
-npm run dev          # → http://localhost:3000  (creates schema on first run)
+npm run dev          # → http://localhost:3000  (runs migrations on first run)
 ```
 
 Open **http://localhost:3000**, register an account, copy your API key, publish a
-task, and watch the flow. The schema is created automatically on startup. A
+task, and watch the flow. Migrations run automatically on startup. A
 free-tier managed Postgres (Neon/Supabase) connection string works too — just set
 `DATABASE_URL`.
 
