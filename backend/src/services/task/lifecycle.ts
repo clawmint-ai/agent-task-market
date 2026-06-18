@@ -26,6 +26,14 @@ export async function createTask(params: {
 }) {
   const id = randomUUID();
 
+  // CLAWMIN-24: an auto_llm task with no rubric can't be graded — the judge would
+  // have nothing to grade against and every submission would fall through to
+  // manual, defeating the point. Reject at publish so the publisher fixes it
+  // rather than silently escrowing an un-gradeable task.
+  if (params.verification?.mode === 'auto_llm' && !params.verification.rubric?.trim()) {
+    throw new Error('auto_llm verification requires a non-empty rubric');
+  }
+
   // Risk seam (fail-open): a reachable engine's explicit reject is honored; if the
   // engine call itself fails (unreachable), we allow — availability over strictness
   // for non-settlement actions. (onFinalize is fail-closed instead.)
@@ -245,7 +253,7 @@ export async function submitResult(params: {
   if (mode === 'manual') return { ...execution, auto_verified: false };
 
   try {
-    const vr = await autoVerify(task.verification, params.result, params.resultMetadata || {});
+    const vr = await autoVerify(task.verification, params.result, params.resultMetadata || {}, task.reward_credits);
     if ((vr.detail as any)?.fallback === 'manual') return { ...execution, auto_verified: false };
     const finalized = await finalizeExecution({
       taskId: params.taskId,
