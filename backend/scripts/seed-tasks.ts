@@ -9,7 +9,7 @@
 // createTask escrow path — no inflation, no fake agents, no auto-completion.
 
 import db, { runMigrations, closeDb } from '../src/db/pool';
-import { createAccount } from '../src/services/accountService';
+import { createAccount, creditCredits } from '../src/services/accountService';
 import { createTask } from '../src/services/task';
 import { SEED_TASKS } from './seed-templates';
 
@@ -32,12 +32,16 @@ async function ensurePlatformAccount(commit: boolean): Promise<string | null> {
 
   if (existing) {
     // Top up gift balance if running low, so seeding never fails mid-batch.
+    // Credit via the ledger-writing path (CLAWMIN-47): a raw UPDATE here used to
+    // set gift_balance directly with no credit_ledger row, breaking conservation.
     if (commit && existing.gift_balance < 10_000) {
-      await db
-        .updateTable('accounts')
-        .set({ gift_balance: PLATFORM_FUND })
-        .where('id', '=', existing.id)
-        .execute();
+      const topUp = PLATFORM_FUND - existing.gift_balance;
+      if (topUp > 0) {
+        await creditCredits(db, existing.id, topUp, 'seed_grant', {
+          creditClass: 'gift',
+          description: 'Platform seeding fund top-up',
+        });
+      }
       console.log(`  topped up platform gift balance → ${PLATFORM_FUND}`);
     }
     return existing.id;
@@ -54,8 +58,22 @@ async function ensurePlatformAccount(commit: boolean): Promise<string | null> {
     computeSource: 'platform_credit',
     metadata: { role: 'platform-seeder' },
   });
-  // createAccount grants the default signup gift; bump it to the seeding fund.
-  await db.updateTable('accounts').set({ gift_balance: PLATFORM_FUND }).where('id', '=', acct.id).execute();
+  // createAccount grants the default signup gift (with a ledger row); top the
+  // rest of the seeding fund up through the ledger-writing path too, so every
+  // gift credit the seeder holds is backed by a credit_ledger entry (CLAWMIN-47:
+  // the old raw `set gift_balance` here left 999k untracked, breaking reconcile).
+  const current = await db
+    .selectFrom('accounts')
+    .select('gift_balance')
+    .where('id', '=', acct.id)
+    .executeTakeFirst();
+  const topUp = PLATFORM_FUND - Number(current?.gift_balance ?? 0);
+  if (topUp > 0) {
+    await creditCredits(db, acct.id, topUp, 'seed_grant', {
+      creditClass: 'gift',
+      description: 'Platform seeding fund grant',
+    });
+  }
   console.log(`  created platform account ${acct.id} (api_key shown once: ${acct.api_key})`);
   return acct.id;
 }
