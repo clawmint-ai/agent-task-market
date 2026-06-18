@@ -291,6 +291,51 @@ socket and `/srv/verify`, joins `DOCKER_GID`, and re-arms the guard.
 
 ---
 
+## risk-engine rollout (CLAWMIN-10)
+
+The closed-source [risk-engine](https://github.com/clawmint-ai/risk-engine) runs as
+a container in the prod overlay, but the backend **ignores it until you set
+`RISK_ENGINE_URL`**. Until then `getRiskEngine()` returns the permissive
+`NoopRiskEngine` — so merging the wiring is a no-op for risk behavior. Bring it up
+in stages so each step is independently verifiable and instantly reversible.
+
+> **The one new failure mode.** With `RISK_ENGINE_URL` set, if the engine is
+> **unreachable**, the backend applies its call-site policy: register/claim/publish
+> **fail-open** (proceed), but **finalize fails closed** — the payout is *held for
+> review*, not lost (recoverable). That's the whole risk surface; the engine is a
+> tiny in-memory service with `autoheal` watching it, so a crash self-heals in ~5s.
+
+**Prereqs (box-side, need creds — operator only):**
+1. **GHCR login** (the image is private):
+   `echo $GHCR_PAT | docker login ghcr.io -u <user> --password-stdin`
+   The PAT needs `read:packages`. Create one at github.com → Settings → Developer
+   settings → Tokens. (CI publishes the image on every push to risk-engine's main.)
+2. **Pick the shared secret** — used by BOTH the backend and the engine:
+   `openssl rand -hex 24` → put it in `.env` as `RISK_ENGINE_KEY`.
+
+**Staged rollout (each step = one `.env` edit + `compose up -d`):**
+
+1. **Deploy the container, engine still detached.** With `RISK_ENGINE_KEY` set but
+   `RISK_ENGINE_URL` still empty, deploy. The `risk-engine` container starts; the
+   backend stays on Noop. Verify health: `docker compose ps risk-engine` (healthy)
+   and `docker compose exec risk-engine node -e "fetch('http://localhost:9000/health').then(r=>r.json()).then(console.log)"`
+   → `{status:'ok',stubMode:true,...}`.
+2. **Attach the backend.** Set `RISK_ENGINE_URL=http://risk-engine:9000` in `.env`,
+   then `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d backend`.
+   All four hooks now consult the engine — but it's in `STUB_MODE`, so every call
+   returns allow. Smoke-test register + publish + claim + finalize; confirm normal
+   behavior and that `docker compose logs risk-engine` shows the requests.
+3. **Go live with heuristics.** Set `RISK_ENGINE_STUB_MODE=false`, enable ONE
+   heuristic (`RISK_SYBIL_ENABLED=true`), `up -d risk-engine`. Watch for false
+   positives, then add self-dealing, collusion, sampling the same way. Pin
+   `RISK_ENGINE_IMAGE` to a `:<sha>` for reproducible deploys.
+
+**Rollback (instant, any step):** clear `RISK_ENGINE_URL` in `.env` and
+`up -d backend` → back to NoopRiskEngine. The engine's in-memory state resets on
+restart; it is advisory (flags/review), never a source of truth for funds.
+
+---
+
 ## Acceptance criteria → how to verify
 
 | Criterion | How to verify |
