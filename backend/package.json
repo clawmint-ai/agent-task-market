@@ -21,6 +21,7 @@
     "migrate:down": "tsx scripts/migrate.ts down",
     "seed": "tsx scripts/seed-tasks.ts",
     "ingest": "tsx scripts/ingest.ts",
+    "reconcile": "tsx scripts/reconcile.ts",
     "test:unit": "tsx --test test/unit/*.test.ts",
     "test:integration": "npm run build && node --test test/integration/*.test.cjs",
     "test": "npm run test:unit && npm run test:integration",
