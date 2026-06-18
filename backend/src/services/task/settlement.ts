@@ -250,9 +250,17 @@ export async function finalizeExecution(params: {
           creditClass: 'earned',
         });
       }
+      // A refund is TERMINAL. The escrowed bounty has been returned to the
+      // publisher, so the task is no longer funded — reopening it (the old
+      // behavior) left a live escrow on a claimable task, which the deadline
+      // sweep would refund a SECOND time (CLAWMIN-39: minting), and a later
+      // pay_winner could pay reward_credits against money already returned.
+      // Mark it failed and zero the escrow columns so any subsequent
+      // reclaim/finalize is a guarded no-op (decideReclaim already skips
+      // 'failed'; zeroing is defense-in-depth in the same locked txn).
       await trx
         .updateTable('tasks')
-        .set({ status: 'open', claimed_at: null })
+        .set({ status: 'failed', escrow_gift: 0, escrow_earned: 0, claimed_at: null })
         .where('id', '=', params.taskId)
         .execute();
       settled = { event: 'reject_refund', gift: action.gift, earned: action.earned, executorId: updated.executor_id };
