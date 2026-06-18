@@ -11,6 +11,7 @@ import { metricsRoutes } from './routes/metrics';
 import { createRateLimiter, keyByAccountOrIp, keyByIp, RateLimiter } from './middleware/rateLimit';
 import { startMaintenanceLoop } from './runtime/maintenance';
 import { HttpMetrics, normalizeRoute } from './domain/httpMetrics';
+import { trustProxy } from './config';
 
 const numEnv = (name: string, def: number): number => {
   const v = Number(process.env[name]);
@@ -37,7 +38,7 @@ function corsOrigin(): boolean | string[] {
 /** Build the Fastify app (routes, plugins, error handler) without listening.
  *  Exported so tests can use app.inject() without binding a port. */
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
-  const app = Fastify({ logger: opts.logger ?? true });
+  const app = Fastify({ logger: opts.logger ?? true, trustProxy: trustProxy() });
 
   await app.register(cors, { origin: corsOrigin() });
 
