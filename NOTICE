@@ -1,0 +1,24 @@
+Agent Task Market
+Copyright (C) 2026 Agent Task Market contributors
+
+This product is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0). The full license text is in the LICENSE file.
+
+================================================================================
+SCOPE OF THE LICENSE — open-source boundary
+================================================================================
+
+The AGPL-3.0 license covers the OPEN components of Agent Task Market:
+
+  - the REST API / market backend (publish / claim / submit / verify / settle)
+  - the credit ledger and settlement logic
+  - the MCP server and the client SDKs
+  - the web UI
+
+It does NOT cover the proprietary risk-engine service (anti-fraud, collusion
+detection, Sybil / self-dealing checks, review-sampling rules) or operational
+data (the reputation graph and treasury state). Those run as a separate closed
+service invoked over an internal API and are not distributed under this license.
+
+See the README section "Open-source boundary" for how the open core composes
+with the closed risk-engine over the RISK_ENGINE_URL seam.
