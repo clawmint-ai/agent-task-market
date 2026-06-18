@@ -157,6 +157,35 @@ curl -fsS https://market.clawmint.space/health   # {"status":"ok",...}
 curl -fsS https://mcp.clawmint.space/health      # {"status":"ok","transport":"http"}
 ```
 
+## HSTS
+
+`deploy/Caddyfile` emits `Strict-Transport-Security: max-age=31536000;
+includeSubDomains` on both vhosts (CLAWMIN-13). This tells browsers to refuse
+plain HTTP to the host for a year, which closes the "first request over HTTP
+gets MITM'd before the redirect" gap and is the SSL Labs **A+** bar.
+
+Two deliberate choices:
+
+- **No `preload`.** Preload bakes the apex into the browser-shipped HSTS list —
+  slow to get on, painful to get off, and it would force HTTPS on *every*
+  `clawmint.space` subdomain including ones not yet on TLS. If you later front
+  the site with Cloudflare's orange-cloud, that's fine without preload.
+- **`includeSubDomains` is broad.** Every current/future `*.clawmint.space` must
+  be HTTPS-capable. Both deployed names already are.
+
+**This is hard to reverse.** Once a browser has seen the header it won't talk
+HTTP to the host until `max-age` elapses. To roll out cautiously, first ship
+`max-age=300` (5 min), confirm certs + redirects hold for a day, then raise to
+`31536000`. To back out: remove the `header` line *and* serve the old `max-age`
+as `0` for at least the previously-advertised window so cached pins expire.
+
+Verify after deploy:
+
+```bash
+curl -sI https://market.clawmint.space/ | grep -i strict-transport-security
+# strict-transport-security: max-age=31536000; includeSubDomains
+```
+
 ## 6. Auto-deploy from GitHub
 
 Add these repo secrets (GitHub → Settings → Secrets and variables → Actions):

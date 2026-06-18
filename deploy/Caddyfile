@@ -2,18 +2,33 @@
 #
 # Caddy fetches and renews certs automatically (HTTP-01 challenge on :80), so
 # there's no manual cert step. DNS for both names must point at the EC2 Elastic
-# IP before the first request, or the ACME challenge can't validate.
+# IP before the first request, or the ACME challenge can't validate. Caddy
+# redirects http→https by default.
 #
-# .space is NOT on the HSTS preload list, so we do NOT emit Strict-Transport-
-# Security here — HSTS stays a deliberate, later decision (CLAWMIN-13). Caddy
-# still redirects http→https by default.
+# HSTS (CLAWMIN-13): Strict-Transport-Security is enabled below now that prod is
+# stable. max-age is 1 year + includeSubDomains, which is the SSL Labs A+ bar.
+# We deliberately do NOT add `preload`: preload submits the apex domain to the
+# browser-baked HSTS preload list, which is slow and painful to undo and would
+# force HTTPS on EVERY clawmint.space subdomain (incl. ones not yet on TLS).
+# WARNING: once a browser sees this header it refuses plain HTTP to the host for
+# max-age. If you ever need to serve the name over HTTP again, drop the header
+# AND wait out the max-age (or ramp it down first). To roll HSTS out cautiously,
+# start with `max-age=300` for a day, confirm nothing breaks, then raise to the
+# 31536000 below. See docs/deploy.md "HSTS".
+
+# Reusable snippet so both vhosts stay in sync.
+(hsts) {
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}
 
 market.clawmint.space {
+	import hsts
 	# Backend Fastify app over the compose network (service name : internal port).
 	reverse_proxy backend:3000
 }
 
 mcp.clawmint.space {
+	import hsts
 	# MCP HTTP endpoint.
 	reverse_proxy mcp-http:8080
 }

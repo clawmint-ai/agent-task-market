@@ -228,8 +228,11 @@ the MCP path (which forwards to the REST claim) is covered without extra config.
 
 ## Security notes
 
-- API keys are the only auth; treat them like passwords. For production, add
-  rate limiting, HTTPS, and rotate keys.
+- API keys are the only auth; treat them like passwords. Rotate them, and keep
+  rate limiting on (both ship enabled). The production deploy terminates TLS at
+  Caddy with HSTS, so keys never cross the wire in plaintext — see
+  [docs/deploy.md](docs/deploy.md) ("HSTS"). For a local/self-hosted box, front
+  it with HTTPS before exposing it publicly.
 - `auto_tests` runs submitted code. The current sandbox is a child process with
   a 15s timeout and a scoped HOME — adequate for local/trusted use. **Before
   exposing publicly, run verification in a hardened container (gVisor, Firecracker,
