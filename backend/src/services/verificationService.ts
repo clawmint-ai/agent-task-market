@@ -288,27 +288,55 @@ async function verifyLLM(
 
   // Node 18+ provides a global fetch; no node-fetch dependency needed here.
   const prompt = `You are grading a task submission. Rubric:\n${config.rubric}\n\nSubmission:\n${result}\n\nReturn ONLY a JSON object: {"score": <0-10 number>, "reasoning": "<short>"}.`;
-  const res = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0,
-      response_format: { type: 'json_object' },
-    }),
-  });
-  const data = (await res.json()) as any;
+
+  // Everything from here is an LLM-runtime call. A failure (network error,
+  // non-2xx, or an unparseable body) is the PLATFORM's fault, not the executor's
+  // — mirror the auto_tests infra-failure path and route to manual review
+  // (detail.fallback='manual' → lifecycle.ts: no auto-reject, no reputation hit).
+  // Only a successfully parsed score yields a real pass/fail verdict.
+  let data: any;
+  try {
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    if (!res.ok) {
+      return {
+        passed: false,
+        score: 0,
+        detail: { error: `LLM endpoint returned HTTP ${res.status}`, fallback: 'manual' },
+      };
+    }
+    data = await res.json();
+  } catch (e) {
+    // Network error / unreachable endpoint / non-JSON body.
+    return {
+      passed: false,
+      score: 0,
+      detail: { error: `LLM call failed: ${(e as Error)?.message || e}`, fallback: 'manual' },
+    };
+  }
+
   try {
     const content = data.choices[0].message.content;
     const parsed = JSON.parse(content);
     const score = Number(parsed.score);
+    if (!Number.isFinite(score)) throw new Error('non-numeric score');
     return {
       passed: score >= threshold,
       score: Number(score.toFixed(2)),
       detail: { reasoning: parsed.reasoning, threshold },
     };
   } catch (e) {
-    return { passed: false, score: 0, detail: { error: 'Failed to parse LLM response', raw: data } };
+    // The call succeeded but the response wasn't a usable grade (missing fields,
+    // non-JSON content, non-numeric score). Still an LLM-side failure, not the
+    // executor's — fall back to manual rather than auto-rejecting.
+    return { passed: false, score: 0, detail: { error: 'Failed to parse LLM response', fallback: 'manual', raw: data } };
   }
 }
