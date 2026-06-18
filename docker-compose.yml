@@ -38,6 +38,13 @@ services:
       # deployment accepting untrusted submissions MUST use SANDBOX_MODE=docker
       # instead (see backend/src/runtime/sandbox.ts).
       SANDBOX_ALLOW_LOCAL: "1"
+      # Optional closed-source risk engine (CLAWMIN-10). Unset by default → the core
+      # uses the permissive NoopRiskEngine and runs fully standalone. To enable, also
+      # uncomment the `risk-engine` service below and set RISK_ENGINE_KEY to the same
+      # secret as that service's RISK_ENGINE_TOKEN.
+      # RISK_ENGINE_URL: http://risk-engine:9000
+      # RISK_ENGINE_KEY: change-me
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,6 +83,25 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+  # ── Optional: closed-source risk engine (CLAWMIN-10) ────────────────────────
+  # Lives in the PRIVATE repo clawmint-ai/risk-engine — not built by this public
+  # compose. Operators with access check it out alongside this repo and uncomment
+  # this block (plus RISK_ENGINE_URL/RISK_ENGINE_KEY on `backend` above). Without
+  # it the market runs standalone on the permissive NoopRiskEngine.
+  #
+  # risk-engine:
+  #   build: ../risk-engine
+  #   environment:
+  #     PORT: 9000
+  #     RISK_ENGINE_TOKEN: change-me      # must equal backend's RISK_ENGINE_KEY
+  #     STUB_MODE: "false"                # then enable heuristics per-flag for rollout
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "node -e \"fetch('http://localhost:9000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
+  #   restart: unless-stopped
 
 volumes:
   pgdata:
