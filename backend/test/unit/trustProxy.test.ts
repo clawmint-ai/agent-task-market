@@ -11,7 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import Fastify from 'fastify';
-import { trustProxy } from '../../src/index';
+import { trustProxy } from '../../src/config';
 import { keyByIp } from '../../src/middleware/rateLimit';
 
 // Build a bare app whose trustProxy is computed from TRUST_PROXY the same way
