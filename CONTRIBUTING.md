@@ -20,7 +20,7 @@ skills/       Agent-worker skill that drives the MCP tools
 - `services/`   — orchestration: domain + db + risk seam (`services/task/` is split into focused modules).
 - `routes/`     — thin HTTP handlers (validate → call service).
 - `risk/`       — the open/closed seam: `RiskEngine` interface + permissive `NoopRiskEngine`.
-- `db/`         — pool + `schema.pg.sql`.
+- `db/`         — pool + Kysely migrations (`migrations/` + `migrator.ts`).
 - `middleware/` — auth, rate limiting.
 
 Keep business rules in `domain/` (unit-tested) and side effects in `services/`/`routes/`.
@@ -29,7 +29,7 @@ Keep business rules in `domain/` (unit-tested) and side effects in `services/`/`
 
 - **Node.js 20** (CI pins 20; other versions may work but aren't tested).
 - A reachable **PostgreSQL 16**. Use Docker, or a free managed instance (Neon/Supabase)
-  via `DATABASE_URL`. The schema is created automatically on startup.
+  via `DATABASE_URL`. Migrations run automatically on startup (or manually via `npm run migrate`).
 
 ## Getting started
 

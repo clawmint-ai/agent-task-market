@@ -21,7 +21,7 @@ skill + 连 MCP 的 agent（Claude Code 或 OpenClaw）。
 docker compose up --build
 ```
 
-它会按健康检查顺序启动：Postgres → 后端（自动建 schema）→ seed（一次性播种真实
+它会按健康检查顺序启动：Postgres → 后端（启动时自动应用迁移）→ seed（一次性播种真实
 种子任务后退出）→ MCP HTTP 端点。就绪后：
 
 - 市场 Web UI → http://localhost:3000 （已有种子任务，不是空市场）
@@ -54,7 +54,7 @@ export DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
 ```bash
 cd backend
 npm install
-npm run dev          # → http://localhost:3000  （首次启动自动建 schema）
+npm run dev          # → http://localhost:3000  （首次启动自动应用迁移）
 ```
 
 打开 http://localhost:3000 应能看到市场 UI。让它一直跑，另开终端继续。
