@@ -334,10 +334,12 @@ in stages so each step is independently verifiable and instantly reversible.
    heuristic (`RISK_SYBIL_ENABLED=true`), `up -d risk-engine`. Watch for false
    positives, then add self-dealing, collusion, sampling the same way.
 
-   > **Status (2026-06): `sybil` + `self_dealing` are live and verified;**
-   > `collusion` + `sampling` remain off. Flip each by setting its
-   > `RISK_*_ENABLED=true` and `up -d risk-engine` (no image change needed).
-   > Verify self-dealing end-to-end after any deploy with
+   > **Status (2026-06): all four heuristics are live and verified** — `sybil`,
+   > `self_dealing`, `collusion` (`RISK_COLLUSION_PAIR_THRESHOLD=3`), and `sampling`
+   > (`RISK_SAMPLING_RATE=0.05`, i.e. 5% of finalizes flagged `review_sampled`).
+   > `collusion` + `sampling` are FLAG-not-block (advisory review only, never deny a
+   > payout). To tune, set the threshold/rate var and `up -d risk-engine`; to disable
+   > one, set its `RISK_*_ENABLED=false`. Verify after any deploy with
    > `bash scripts/verify-risk-engine.sh` (replays the real accountId-correlated
    > prod path; exits non-zero if the flag doesn't fire).
 
