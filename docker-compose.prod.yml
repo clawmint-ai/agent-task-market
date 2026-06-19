@@ -45,6 +45,17 @@ services:
       # submission verification unless SANDBOX_MODE=docker (or the operator
       # re-adds ALLOW_LOCAL deliberately in .env).
       SANDBOX_ALLOW_LOCAL: !reset null
+      # Closed-source risk-engine (CLAWMIN-10). OFF until the operator sets
+      # RISK_ENGINE_URL in .env — until then getRiskEngine() falls back to the
+      # permissive NoopRiskEngine, so deploying this overlay is a no-op for risk
+      # behavior (safe default). When set, register/claim/publish/finalize consult
+      # the `risk-engine` service below.
+      # SAFETY: with the URL set, an UNREACHABLE engine makes finalize fail-closed
+      # (payout held for review — recoverable), while register/claim/publish
+      # fail-open. RISK_ENGINE_KEY must equal the engine's RISK_ENGINE_TOKEN.
+      RISK_ENGINE_URL: ${RISK_ENGINE_URL:-}
+      RISK_ENGINE_KEY: ${RISK_ENGINE_KEY:-}
+      RISK_ENGINE_TIMEOUT_MS: ${RISK_ENGINE_TIMEOUT_MS:-2000}
     # Reset the demo's published port — Caddy fronts it now.
     ports: !reset []
     # Tighter probe than the demo (base is 3s×20=60s to unhealthy). 3s×3 ≈ 9s to
@@ -76,6 +87,38 @@ services:
     # Default 999 is an inert/unused group when sandbox mode is off (harmless).
     group_add:
       - "${DOCKER_GID:-999}"
+
+  # Closed-source risk-engine (private image, CLAWMIN-10). Always runs (it's a
+  # tiny in-memory service), but the backend only consults it once RISK_ENGINE_URL
+  # is set in .env — so this is inert until the operator opts in. Not in the base
+  # demo compose: the image is private, so public `docker compose up` never pulls it.
+  #
+  # Pull requires `docker login ghcr.io` on the box (see docs/deploy.md). Pin a sha
+  # via RISK_ENGINE_IMAGE in .env for reproducible deploys; defaults to :latest.
+  # No host ports — only the backend reaches it on the compose network.
+  risk-engine:
+    image: ${RISK_ENGINE_IMAGE:-ghcr.io/clawmint-ai/risk-engine:latest}
+    restart: unless-stopped
+    environment:
+      PORT: 9000
+      # Same secret the backend sends as RISK_ENGINE_KEY. If empty, the engine
+      # disables auth — so ALWAYS set RISK_ENGINE_KEY in .env before going live.
+      RISK_ENGINE_TOKEN: ${RISK_ENGINE_KEY:-}
+      # Gradual rollout: start true (pure passthrough), then false + per-heuristic
+      # flags. See docs/deploy.md "risk-engine rollout".
+      STUB_MODE: ${RISK_ENGINE_STUB_MODE:-true}
+      RISK_SYBIL_ENABLED: ${RISK_SYBIL_ENABLED:-false}
+      RISK_SELF_DEALING_ENABLED: ${RISK_SELF_DEALING_ENABLED:-false}
+      RISK_COLLUSION_ENABLED: ${RISK_COLLUSION_ENABLED:-false}
+      RISK_SAMPLING_ENABLED: ${RISK_SAMPLING_ENABLED:-false}
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:9000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 3s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    labels:
+      autoheal: "true"
 
   mcp-http:
     # Reset the demo's published port — Caddy fronts it.
