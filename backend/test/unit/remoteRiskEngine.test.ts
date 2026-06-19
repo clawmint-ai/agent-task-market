@@ -49,6 +49,19 @@ test('parses a RiskDecision and hits POST {baseUrl}/{hook}', async () => {
   }
 });
 
+test('forwards accountId on the onRegister wire body (CLAWMIN-10 correlation key)', async () => {
+  const calls = installFetch(async () => jsonResponse({ allow: true }));
+  try {
+    const engine = new RemoteRiskEngine('http://risk:9000');
+    await engine.onRegister({ type: 'agent', name: 'display-name', accountId: 'uuid-123', ip: '1.2.3.4' });
+    const sent = JSON.parse(String(calls[0].init.body));
+    assert.equal(sent.accountId, 'uuid-123', 'closed engine keys register obs by this id');
+    assert.equal(sent.name, 'display-name', 'name still forwarded too');
+  } finally {
+    restore();
+  }
+});
+
 test('allow:false is a VALID decision — it must NOT throw', async () => {
   installFetch(async () => jsonResponse({ allow: false, reason: 'sybil_cluster', flags: ['s'] }));
   try {
