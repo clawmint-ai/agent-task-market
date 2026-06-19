@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { randomUUID } from 'crypto';
 import { createAccount, getAccountById, getCreditHistory, rotateApiKey, redeemEarned } from '../services/accountService';
 import { getReputationHistory } from '../services/reputationService';
 import { authMiddleware } from '../middleware/auth';
@@ -68,9 +69,15 @@ export async function accountRoutes(
     // (timeout / 5xx / unparseable body, which RemoteRiskEngine throws on) is
     // allowed through. Mirrors the publish/claim handlers in task/lifecycle.ts.
     let decision;
+    // Pre-generate the account id so the SAME id reaches both the onRegister hook
+    // and createAccount below. A closed risk-engine keys its register observation
+    // (IP/fingerprint) under this id; without it, claim/finalize hooks (which carry
+    // only the uuid) can't be correlated back to the signup. See CLAWMIN-10.
+    const accountId = randomUUID();
     try {
       decision = await getRiskEngine().onRegister({
         type: body.data.type,
+        accountId,
         name: body.data.name,
         email: body.data.email,
         computeSource: body.data.compute_source,
@@ -86,6 +93,7 @@ export async function accountRoutes(
 
     try {
       const account = await createAccount({
+        id: accountId,
         type: body.data.type,
         name: body.data.name,
         email: body.data.email,

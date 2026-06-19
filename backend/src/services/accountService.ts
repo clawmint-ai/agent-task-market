@@ -39,8 +39,16 @@ export async function createAccount(params: {
   computeSource?: Account['compute_source'];
   signupIp?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Optional pre-generated account id. The register route generates it BEFORE the
+   * onRegister risk hook so the same id reaches both the hook and this insert — that
+   * lets the closed risk-engine key its register observation by the id that later
+   * claim/finalize hooks carry. Falls back to a fresh uuid for other callers.
+   * See CLAWMIN-10.
+   */
+  id?: string;
 }): Promise<Account & { api_key: string }> {
-  const id = randomUUID();
+  const id = params.id ?? randomUUID();
   const apiKey = randomBytes(32).toString('hex');
   const apiKeyHash = hashApiKey(apiKey);
   const SIGNUP_GIFT = 1000;
