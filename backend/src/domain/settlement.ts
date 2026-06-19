@@ -113,3 +113,28 @@ export function decideStaleRelease(input: StaleReleaseInput): StaleReleaseAction
   const reopen = input.taskStatus === 'claimed' && activeAfter < input.maxExecutors;
   return { kind: 'release', reopen };
 }
+
+// ── Risk hold (review vs freeze) ─────────────────────────────────────────────
+
+export interface RiskHoldDecision {
+  /** Record a risk_flags audit row for this payout (queue for review). */
+  review: boolean;
+  /** Move the reward earned → frozen_earned (hold the funds out of circulation). */
+  freeze: boolean;
+}
+
+/**
+ * Decide, from a risk-engine finalize decision, whether to record a review flag
+ * and whether to freeze the reward. These are DISTINCT: pure sampling queues a
+ * payout for review without holding the funds, while a real suspicion
+ * (self-dealing, collusion) both reviews and freezes.
+ *
+ * Back-compat: the engine's `freeze` field is authoritative when present; an
+ * older engine that omits it falls back to `reviewSample`, preserving the prior
+ * freeze-on-every-review behavior. Pure: no I/O. See CLAWMIN-10.
+ */
+export function decideRiskHold(input: { reviewSample?: boolean; freeze?: boolean }): RiskHoldDecision {
+  const review = input.reviewSample === true;
+  const freeze = (input.freeze ?? input.reviewSample) === true;
+  return { review, freeze };
+}
