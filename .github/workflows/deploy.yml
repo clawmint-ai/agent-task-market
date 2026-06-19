@@ -17,6 +17,10 @@ name: Deploy
 on:
   push:
     branches: [main]
+  # Manual re-trigger (Actions tab → Run workflow) for when main hasn't moved but
+  # you need to roll the box forward — e.g. a new risk-engine :latest was pushed
+  # from the other repo and you want to pull it without an empty commit.
+  workflow_dispatch:
 
 # A newer push supersedes an in-flight deploy.
 concurrency:
@@ -48,5 +52,12 @@ jobs:
             # unconditionally keeps it in sync with deploy/sandbox/Dockerfile even
             # when sandbox mode is off (harmless: it's just an unused image then).
             docker build -t clawmint-sandbox:latest deploy/sandbox
+            # Roll the risk-engine forward. It's referenced by image: (not build:),
+            # and compose's default pull policy is "missing" — so `up -d` will NOT
+            # re-fetch an existing :latest tag. Pull it explicitly so a freshly
+            # pushed engine image actually lands. Named service only: backend/mcp
+            # are build: services and a bare `pull` would error under pipefail.
+            # Requires `docker login ghcr.io` on the box (private image).
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull risk-engine
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
             docker image prune -f
