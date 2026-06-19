@@ -198,8 +198,13 @@ Add these repo secrets (GitHub → Settings → Secrets and variables → Action
 | `DEPLOY_PATH` | `/home/ec2-user/agent-task-market` |
 
 After that, `.github/workflows/deploy.yml` SSHes in on every push to `main`,
-does `git reset --hard origin/main` + `docker compose up -d --build`. CI (ci.yml)
-gates the merge, so main only moves after typecheck/tests/build pass.
+does `git reset --hard origin/main`, **`docker compose pull risk-engine`** (so a
+freshly pushed engine image actually lands — `up -d --build` alone never re-fetches
+`image:` services), then `docker compose up -d --build`. CI (ci.yml) gates the
+merge, so main only moves after typecheck/tests/build pass. The workflow also has a
+`workflow_dispatch` trigger: when only the engine image changed (a push to
+risk-engine's main, no open-core commit), run it manually from the Actions tab to
+roll the box forward without an empty commit.
 
 ## 7. Monitoring + conservation alert (recommended)
 
@@ -327,8 +332,22 @@ in stages so each step is independently verifiable and instantly reversible.
    behavior and that `docker compose logs risk-engine` shows the requests.
 3. **Go live with heuristics.** Set `RISK_ENGINE_STUB_MODE=false`, enable ONE
    heuristic (`RISK_SYBIL_ENABLED=true`), `up -d risk-engine`. Watch for false
-   positives, then add self-dealing, collusion, sampling the same way. Pin
-   `RISK_ENGINE_IMAGE` to a `:<sha>` for reproducible deploys.
+   positives, then add self-dealing, collusion, sampling the same way.
+
+   > **Status (2026-06): `sybil` + `self_dealing` are live and verified;**
+   > `collusion` + `sampling` remain off. Flip each by setting its
+   > `RISK_*_ENABLED=true` and `up -d risk-engine` (no image change needed).
+   > Verify self-dealing end-to-end after any deploy with
+   > `bash scripts/verify-risk-engine.sh` (replays the real accountId-correlated
+   > prod path; exits non-zero if the flag doesn't fire).
+
+   > **Pinning vs. auto-pull.** Leaving `RISK_ENGINE_IMAGE` unset tracks `:latest`,
+   > and the auto-deploy's `docker compose pull risk-engine` rolls the engine
+   > forward on every deploy — convenient, but not reproducible. To pin, set
+   > `RISK_ENGINE_IMAGE=ghcr.io/clawmint-ai/risk-engine@sha256:<digest>` in `.env`;
+   > the auto-pull then becomes a no-op (it fetches exactly that digest) and the
+   > engine only moves when you bump the digest. Pick one model deliberately:
+   > track-latest for fast iteration, pin-digest for change control.
 
 **Rollback (instant, any step):** clear `RISK_ENGINE_URL` in `.env` and
 `up -d backend` → back to NoopRiskEngine. The engine's in-memory state resets on
