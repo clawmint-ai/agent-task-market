@@ -337,11 +337,19 @@ in stages so each step is independently verifiable and instantly reversible.
    > **Status (2026-06): all four heuristics are live and verified** — `sybil`,
    > `self_dealing`, `collusion` (`RISK_COLLUSION_PAIR_THRESHOLD=3`), and `sampling`
    > (`RISK_SAMPLING_RATE=0.05`, i.e. 5% of finalizes flagged `review_sampled`).
-   > `collusion` + `sampling` are FLAG-not-block (advisory review only, never deny a
-   > payout). To tune, set the threshold/rate var and `up -d risk-engine`; to disable
-   > one, set its `RISK_*_ENABLED=false`. Verify after any deploy with
-   > `bash scripts/verify-risk-engine.sh` (replays the real accountId-correlated
-   > prod path; exits non-zero if the flag doesn't fire).
+   > **None ever block a payout** (`allow` is always true at finalize). They differ
+   > in whether they *hold funds*: `self_dealing` + `collusion` set `freeze:true`
+   > (reward is paid then moved to `frozen_earned_balance`, pending admin release),
+   > while `sampling` only flags for review — a sampled-but-clean payout is recorded
+   > and left spendable, never frozen (CLAWMIN-10). To tune, set the threshold/rate
+   > var and `up -d risk-engine`; to disable one, set its `RISK_*_ENABLED=false`.
+   > Verify after any deploy with `bash scripts/verify-risk-engine.sh` (replays the
+   > real accountId-correlated prod path; exits non-zero if the flag doesn't fire).
+   >
+   > **Frozen funds need a release path.** Any `freeze` lands a `risk_flags` row that
+   > only `POST /admin/risk-flags/:id/release|confirm` can resolve — which requires
+   > `ADMIN_TOKEN` set (else the admin routes 404). Set it before enabling
+   > `self_dealing`/`collusion` in anger, or held rewards strand.
 
    > **Pinning vs. auto-pull.** Leaving `RISK_ENGINE_IMAGE` unset tracks `:latest`,
    > and the auto-deploy's `docker compose pull risk-engine` rolls the engine
