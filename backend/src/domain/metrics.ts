@@ -7,6 +7,7 @@
 export const TASK_STATUSES = ['open', 'claimed', 'submitted', 'completed', 'failed', 'cancelled'] as const;
 export const EXEC_STATUSES = ['in_progress', 'submitted', 'accepted', 'rejected'] as const;
 export const ACCOUNT_TYPES = ['human', 'agent'] as const;
+export const RISK_FLAG_STATUSES = ['open', 'released', 'frozen'] as const;
 
 export interface MetricsSnapshot {
   conservation: {
@@ -18,6 +19,11 @@ export interface MetricsSnapshot {
   tasksByStatus: Record<string, number>;
   executionsByStatus: Record<string, number>;
   accountsByType: Record<string, number>;
+  // Risk review queue: flags by status + total earned credits currently frozen
+  // pending review. A climbing `open` count or `frozenEarned` total means the
+  // review queue isn't being worked — held rewards are stranding. See CLAWMIN-10.
+  riskFlagsByStatus: Record<string, number>;
+  frozenEarnedTotal: number;
 }
 
 /** Seed every label to 0, then overlay the rows actually present in the DB. */
@@ -74,6 +80,14 @@ export function renderPrometheus(s: MetricsSnapshot): string {
   out.push('# HELP atm_accounts Account count by type.');
   out.push('# TYPE atm_accounts gauge');
   for (const [type, c] of Object.entries(s.accountsByType)) out.push(line('atm_accounts', c, { type }));
+
+  out.push('# HELP atm_risk_flags Risk-review flags by status (open = awaiting an admin).');
+  out.push('# TYPE atm_risk_flags gauge');
+  for (const [status, c] of Object.entries(s.riskFlagsByStatus)) out.push(line('atm_risk_flags', c, { status }));
+
+  out.push('# HELP atm_frozen_earned_total Earned credits currently frozen pending risk review.');
+  out.push('# TYPE atm_frozen_earned_total gauge');
+  out.push(line('atm_frozen_earned_total', s.frozenEarnedTotal));
 
   return out.join('\n') + '\n';
 }
