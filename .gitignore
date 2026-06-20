@@ -8,6 +8,11 @@
 !**/.env.example
 !**/.env.prod.example
 
+# Alertmanager notification secrets (Telegram bot token + chat id), mounted into
+# the alertmanager container from monitoring/secrets/ — never commit real values.
+monitoring/secrets/*
+!monitoring/secrets/README.md
+
 # ── Dependencies ─────────────────────────────────────────────────────────────
 node_modules/
 
