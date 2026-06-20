@@ -363,6 +363,17 @@ in stages so each step is independently verifiable and instantly reversible.
 `up -d backend` → back to NoopRiskEngine. The engine's in-memory state resets on
 restart; it is advisory (flags/review), never a source of truth for funds.
 
+> **Memory window on engine redeploy.** The engine's observation store (sybil
+> history, collusion edge graph) is **in-memory and not persisted**. `up -d` only
+> recreates the engine when its image digest changes, so open-core-only deploys
+> leave it running; but an *engine* image update (or any restart) wipes the store
+> to empty, and it re-warms from the hook stream. Effect is **fail-safe** — it
+> under-reports briefly (e.g. a collusion pair must re-accumulate to threshold),
+> never false-freezes. Watch the warm-up via the `risk_store_accounts` /
+> `risk_store_edges` gauges on `/metrics` (a drop to 0 = the window, not data
+> loss). Persisting the store (Redis/Postgres) is a deliberate pre-scale
+> follow-up — the interface in `observationStore.ts` is built to swap.
+
 ---
 
 ## Acceptance criteria → how to verify
