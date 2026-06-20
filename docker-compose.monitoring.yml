@@ -62,8 +62,10 @@ services:
       - /bin/sh
       - -c
       - |
-        CID="$$(cat /etc/alertmanager/secrets/telegram_chat_id 2>/dev/null | tr -d '[:space:]')"
-        if [ -z "$$CID" ]; then echo "FATAL: monitoring/secrets/telegram_chat_id missing or empty"; exit 1; fi
+        CIDFILE=/etc/alertmanager/secrets/telegram_chat_id
+        if [ ! -r "$$CIDFILE" ]; then echo "FATAL: $$CIDFILE not readable by the container (it runs as nobody — chmod 644 the secret files, not 600)"; exit 1; fi
+        CID="$$(tr -d '[:space:]' < "$$CIDFILE")"
+        if [ -z "$$CID" ]; then echo "FATAL: $$CIDFILE is empty"; exit 1; fi
         sed "s/__CHAT_ID__/$$CID/g" /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml
         exec /bin/alertmanager \
           --config.file=/tmp/alertmanager.yml \
