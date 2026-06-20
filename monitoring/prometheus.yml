@@ -41,3 +41,16 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ['localhost:9090']
+
+  # Closed-source risk-engine (prod overlay only). Its /metrics is unauthenticated
+  # — it exposes only aggregate flag/finalize counters, no per-request data or PII
+  # — so no Bearer block. When the monitoring stack runs WITHOUT the prod overlay
+  # (e.g. the local demo), this target is simply absent and shows as down; that's
+  # expected. Surfaces per-heuristic flag rates so the sampling rate / collusion
+  # threshold can be tuned against real traffic instead of guessed. See CLAWMIN-10.
+  - job_name: risk-engine
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['risk-engine:9000']
+        labels:
+          instance: risk-engine
