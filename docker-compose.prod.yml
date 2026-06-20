@@ -56,6 +56,16 @@ services:
       RISK_ENGINE_URL: ${RISK_ENGINE_URL:-}
       RISK_ENGINE_KEY: ${RISK_ENGINE_KEY:-}
       RISK_ENGINE_TIMEOUT_MS: ${RISK_ENGINE_TIMEOUT_MS:-2000}
+      # Admin/ops API token (risk-flag review release/confirm, reconcile). Compose
+      # only injects variables it NAMES here — a value in .env alone never reaches
+      # the container — so without this line every /admin route 404s (admin.ts
+      # treats an unset token as "disabled"). Empty default keeps the demo's
+      # admin routes disabled until the operator sets ADMIN_TOKEN in .env.
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      # /metrics scrape token. Same rule: must be named here to reach the backend.
+      # Empty → /metrics is open (backend logs a warning); set it in .env AND in the
+      # monitoring overlay's prometheus env so the scrape authenticates with it.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     # Reset the demo's published port — Caddy fronts it now.
     ports: !reset []
     # Tighter probe than the demo (base is 3s×20=60s to unhealthy). 3s×3 ≈ 9s to
