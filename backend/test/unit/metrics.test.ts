@@ -13,6 +13,8 @@ const snapshot: MetricsSnapshot = {
   tasksByStatus: { open: 5, claimed: 1, submitted: 0, completed: 3, failed: 0, cancelled: 0 },
   executionsByStatus: { in_progress: 1, submitted: 0, accepted: 3, rejected: 2 },
   accountsByType: { human: 1, agent: 4 },
+  riskFlagsByStatus: { open: 2, released: 1, frozen: 0 },
+  frozenEarnedTotal: 42,
 };
 
 test('renders Prometheus exposition with HELP/TYPE and labeled gauges', () => {
@@ -28,6 +30,15 @@ test('renders Prometheus exposition with HELP/TYPE and labeled gauges', () => {
   assert.match(out, /atm_tasks\{status="completed"\} 3/);
   assert.match(out, /atm_executions\{status="accepted"\} 3/);
   assert.match(out, /atm_accounts\{type="agent"\} 4/);
+  // Risk review queue
+  assert.match(out, /# TYPE atm_risk_flags gauge/);
+  assert.match(out, /atm_risk_flags\{status="open"\} 2/);
+  assert.match(out, /atm_frozen_earned_total 42/);
+});
+
+test('zero risk-flag statuses still render as 0 (drained queue stays visible)', () => {
+  const out = renderPrometheus(snapshot);
+  assert.match(out, /atm_risk_flags\{status="frozen"\} 0/);
 });
 
 test('zero-count statuses still render as 0 (not absent)', () => {

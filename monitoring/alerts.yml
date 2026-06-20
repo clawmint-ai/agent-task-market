@@ -60,3 +60,23 @@ groups:
             Prometheus cannot scrape backend:3000/metrics for 2m. The backend
             may be down, unreachable, or rejecting the metrics token. While this
             fires, conservation is UNMONITORED — treat with urgency.
+
+  - name: risk-review
+    rules:
+      # ── P2: the risk review queue is backing up ─────────────────────────────
+      # Every frozen reward sits as an `open` risk_flag until an admin releases or
+      # confirms it. A queue that stays non-empty for 6h means held funds are
+      # stranding — either no one is working the queue or ADMIN_TOKEN isn't set so
+      # the release endpoint 404s. Slow-burn, not a page; surface it as a warning.
+      - alert: RiskReviewQueueStuck
+        expr: atm_risk_flags{status="open"} > 0
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Risk review queue non-empty for 6h ({{ $value }} open flags)"
+          description: >-
+            atm_risk_flags{status=open} = {{ $value }} sustained for 6h. Frozen
+            rewards await admin review via POST /admin/risk-flags/:id/release|confirm
+            (requires ADMIN_TOKEN set, else those routes 404). See atm_frozen_earned_total
+            for the held amount. Work the queue or the held funds strand.
