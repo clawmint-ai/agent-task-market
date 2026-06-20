@@ -63,20 +63,25 @@ groups:
 
   - name: risk-review
     rules:
-      # ── P2: the risk review queue is backing up ─────────────────────────────
-      # Every frozen reward sits as an `open` risk_flag until an admin releases or
-      # confirms it. A queue that stays non-empty for 6h means held funds are
-      # stranding — either no one is working the queue or ADMIN_TOKEN isn't set so
-      # the release endpoint 404s. Slow-burn, not a page; surface it as a warning.
+      # ── P2: held funds are stranding in the review queue ────────────────────
+      # A self_dealing/collusion finalize PAYS then FREEZES the reward (earned →
+      # frozen_earned), recorded as an `open` risk_flag that only an admin can
+      # release/confirm. We alert on the held AMOUNT, not the open-flag COUNT:
+      # register-time sybil flags are `open` but amount 0 (audit markers, no money
+      # held), so counting them would fire this alarm on harmless noise. A non-zero
+      # frozen total sustained for 6h means real earnings are stuck — either no one
+      # is working the queue or ADMIN_TOKEN isn't set so the release route 404s.
+      # Slow-burn, not a page; surface it as a warning.
       - alert: RiskReviewQueueStuck
-        expr: atm_risk_flags{status="open"} > 0
+        expr: atm_frozen_earned_total > 0
         for: 6h
         labels:
           severity: warning
         annotations:
-          summary: "Risk review queue non-empty for 6h ({{ $value }} open flags)"
+          summary: "Frozen rewards stranded in review for 6h ({{ $value }} credits held)"
           description: >-
-            atm_risk_flags{status=open} = {{ $value }} sustained for 6h. Frozen
-            rewards await admin review via POST /admin/risk-flags/:id/release|confirm
-            (requires ADMIN_TOKEN set, else those routes 404). See atm_frozen_earned_total
-            for the held amount. Work the queue or the held funds strand.
+            atm_frozen_earned_total = {{ $value }} earned credits held in review for
+            6h. A suspected self-dealing/collusion payout was frozen and is awaiting
+            POST /admin/risk-flags/:id/release|confirm (requires ADMIN_TOKEN set, else
+            those routes 404). Cross-check atm_risk_flags{status="open"} for the flag
+            count. Work the queue or the held funds strand.
