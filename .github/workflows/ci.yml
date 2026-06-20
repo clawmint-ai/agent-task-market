@@ -93,8 +93,12 @@ jobs:
       # (e.g. a telegram_config field unsupported by the pinned alertmanager, or a
       # bad !reset/merge) fails the PR instead of crash-looping live. Only merges
       # YAML — it does not read volume contents, so the secrets dir need not hold
-      # real files here.
+      # real files here. A dummy POSTGRES_PASSWORD is supplied because the prod
+      # overlay requires it for interpolation (it has no `:-` default); the value
+      # is irrelevant to structural validation.
       - name: Validate merged prod + monitoring overlays
+        env:
+          POSTGRES_PASSWORD: ci-validation-dummy
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml config -q
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
