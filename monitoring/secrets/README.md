@@ -20,6 +20,14 @@ target chat and reading `https://api.telegram.org/bot<TOKEN>/getUpdates` (the
 
 `printf` (not `echo`) avoids a trailing newline that would corrupt the token.
 
+> **Why two mechanisms.** The bot token is read directly by Alertmanager via
+> `bot_token_file` (never enters the config or git). The chat id can't use a file —
+> `chat_id_file` was added *after* Alertmanager v0.27.0 (the pinned version), so the
+> container's entrypoint renders the chat id from `telegram_chat_id` into the config
+> at start (`__CHAT_ID__` placeholder → inline int). The chat id is a destination,
+> not a secret; the file just keeps the operator step to "drop two files". The
+> entrypoint exits loudly if `telegram_chat_id` is missing or empty.
+
 To verify after `docker compose ... up -d`:
 - `docker compose ... logs alertmanager` — should boot without a config error.
 - Trigger a test: visit the Prometheus UI (`:9090`, via SSH tunnel) and check the
