@@ -11,8 +11,14 @@ Before bringing up the monitoring overlay, create two files **on the box**:
 cd ~/agent-task-market/monitoring/secrets
 printf '%s' '<BOT_TOKEN_FROM_BOTFATHER>' > telegram_bot_token   # e.g. 123456:ABC-DEF...
 printf '%s' '<TARGET_CHAT_ID>'          > telegram_chat_id      # e.g. -1001234567890
-chmod 600 telegram_bot_token telegram_chat_id
+chmod 644 telegram_bot_token telegram_chat_id
 ```
+
+> **Mode 644, not 600.** The alertmanager container runs as `nobody`, not the
+> host uid that owns these files. With 600 the container can't read them and the
+> entrypoint aborts with "telegram_chat_id missing or empty" (a read failure, not
+> a literally empty file). 644 is fine on a single-tenant box. The bot token is
+> thus world-readable *on the host* — acceptable for beta; rotate it at launch.
 
 Get the bot token from @BotFather. Get the chat id by adding the bot to the
 target chat and reading `https://api.telegram.org/bot<TOKEN>/getUpdates` (the
