@@ -5,7 +5,7 @@ import type { Database } from '../../db/types';
 import { creditCredits } from '../accountService';
 import { applyReputation } from '../reputationService';
 import { insertRiskFlag } from '../riskFlagService';
-import { decideFinalize, decideReclaim, decideStaleRelease } from '../../domain/settlement';
+import { decideFinalize, decideReclaim, decideStaleRelease, decideRiskHold } from '../../domain/settlement';
 import { TaskExecution, parseExecution } from './mappers';
 import { getRiskEngine } from '../../risk';
 import { logger } from '../../runtime/logger';
@@ -152,51 +152,64 @@ export async function finalizeExecution(params: {
         description: `Reward for completing task: ${task.title}`,
         creditClass: action.rewardClass,
       });
-      // Risk review (CLAWMIN-23): the engine flagged this payout (e.g. same-IP
-      // self-dealing) via reviewSample. We PAY then immediately FREEZE the reward —
-      // it's credited to the earned ledger (conservation holds) but moved out of the
-      // spendable/redeemable balance into frozen_earned_balance, pending admin review.
-      // The freeze is a delta=0 move within the 'earned' class, atomic with the payout.
+      // Risk review (CLAWMIN-23/10): the engine may flag this payout for review
+      // and, separately, ask us to FREEZE it. These are distinct — pure sampling
+      // queues an audit without holding funds, while a real suspicion (same-IP
+      // self-dealing, collusion) both reviews and freezes. decideRiskHold splits
+      // the two (with back-compat fallback to reviewSample for an older engine).
+      const hold = decideRiskHold({
+        reviewSample: finalizeDecision.reviewSample,
+        freeze: finalizeDecision.freeze,
+      });
       let frozenForReview = false;
-      if (finalizeDecision.reviewSample) {
-        const frz = await trx
-          .updateTable('accounts')
-          .set({
-            earned_balance: sql<number>`earned_balance - ${task.reward_credits}`,
-            frozen_earned_balance: sql<number>`frozen_earned_balance + ${task.reward_credits}`,
-            updated_at: sql<Date>`now()`,
-          } as any)
-          .where('id', '=', updated.executor_id)
-          .where(sql<boolean>`earned_balance >= ${task.reward_credits}`)
-          .returning(['earned_balance'])
-          .executeTakeFirst();
-        if (!frz) throw new Error('Cannot freeze reward for review: insufficient earned balance');
-        await trx
-          .insertInto('credit_ledger')
-          .values({
-            id: randomUUID(),
-            account_id: updated.executor_id,
-            delta: 0,
-            balance_after: Number(frz.earned_balance),
-            credit_class: 'earned',
-            reason: 'risk_freeze',
-            ref_id: task.id,
-            description: `Reward held for review: ${(finalizeDecision.flags || []).join(',') || 'flagged'}`,
-          })
-          .execute();
+      if (hold.review) {
+        if (hold.freeze) {
+          // PAY then FREEZE: reward is credited to 'earned' (conservation holds)
+          // but moved out of spendable into frozen_earned_balance, pending review.
+          // The freeze is a delta=0 move within 'earned', atomic with the payout.
+          const frz = await trx
+            .updateTable('accounts')
+            .set({
+              earned_balance: sql<number>`earned_balance - ${task.reward_credits}`,
+              frozen_earned_balance: sql<number>`frozen_earned_balance + ${task.reward_credits}`,
+              updated_at: sql<Date>`now()`,
+            } as any)
+            .where('id', '=', updated.executor_id)
+            .where(sql<boolean>`earned_balance >= ${task.reward_credits}`)
+            .returning(['earned_balance'])
+            .executeTakeFirst();
+          if (!frz) throw new Error('Cannot freeze reward for review: insufficient earned balance');
+          await trx
+            .insertInto('credit_ledger')
+            .values({
+              id: randomUUID(),
+              account_id: updated.executor_id,
+              delta: 0,
+              balance_after: Number(frz.earned_balance),
+              credit_class: 'earned',
+              reason: 'risk_freeze',
+              ref_id: task.id,
+              description: `Reward held for review: ${(finalizeDecision.flags || []).join(',') || 'flagged'}`,
+            })
+            .execute();
+          frozenForReview = true;
+        }
+        // Audit row either way. amount=0 for a review-only (sampled) flag so its
+        // release is a pure status change with no ledger movement; amount=reward
+        // for a freeze so releaseRiskFlag unfreezes exactly what was held.
         await insertRiskFlag(trx, {
           accountId: updated.executor_id,
           kind: (finalizeDecision.flags || [])[0] || 'review',
           refId: task.id,
-          amount: task.reward_credits,
+          amount: hold.freeze ? task.reward_credits : 0,
           detail: {
             flags: finalizeDecision.flags || [],
             reason: finalizeDecision.reason,
             executionId: params.executionId,
             publisherId: task.publisher_id,
+            frozen: hold.freeze,
           },
         });
-        frozenForReview = true;
       }
       await trx
         .updateTable('accounts')

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { decideFinalize, decideReclaim, decideStaleRelease } from '../../src/domain/settlement';
+import { decideFinalize, decideReclaim, decideStaleRelease, decideRiskHold } from '../../src/domain/settlement';
 
 test('accepted + task already completed → supersede (no payout)', () => {
   const a = decideFinalize({ accepted: true, taskStatus: 'completed', escrowGift: 0, escrowEarned: 100, otherActiveCount: 0 });
@@ -94,4 +94,28 @@ test('stale: terminal task states are never touched', () => {
     const a = decideStaleRelease({ taskStatus: s, staleCount: 3, freshInProgressCount: 0, submittedCount: 0, maxExecutors: 1 });
     assert.deepEqual(a, { kind: 'skip' }, `status ${s} must skip`);
   }
+});
+
+// ── decideRiskHold (review vs freeze, CLAWMIN-10) ────────────────────────────
+
+test('risk hold: no review, no freeze when engine flags neither', () => {
+  assert.deepEqual(decideRiskHold({ reviewSample: false, freeze: false }), { review: false, freeze: false });
+  assert.deepEqual(decideRiskHold({}), { review: false, freeze: false });
+});
+
+test('risk hold: suspicion (freeze:true) both reviews and freezes', () => {
+  assert.deepEqual(decideRiskHold({ reviewSample: true, freeze: true }), { review: true, freeze: true });
+});
+
+test('risk hold: pure sampling reviews WITHOUT freezing', () => {
+  // The CLAWMIN-10 fix: a sampled-but-clean payout is audited, never held.
+  assert.deepEqual(decideRiskHold({ reviewSample: true, freeze: false }), { review: true, freeze: false });
+});
+
+test('risk hold: back-compat — older engine omits freeze, falls back to reviewSample', () => {
+  // An engine that predates the freeze field sends only reviewSample; we must
+  // preserve the prior freeze-on-every-review behavior so nothing silently stops
+  // holding funds during a partial rollout.
+  assert.deepEqual(decideRiskHold({ reviewSample: true }), { review: true, freeze: true });
+  assert.deepEqual(decideRiskHold({ reviewSample: false }), { review: false, freeze: false });
 });

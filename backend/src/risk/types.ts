@@ -13,6 +13,12 @@ export interface RiskDecision {
   reason?: string;
   flags?: string[]; // e.g. ['self_dealing_suspected', 'sybil_cluster']
   reviewSample?: boolean; // mark this outcome for sampled human/strong-model review
+  // Whether to FREEZE the payout (hold funds), distinct from reviewSample which
+  // only queues for review. A strict subset: real suspicion (self-dealing,
+  // collusion) sets freeze:true; pure sampling sets freeze:false. Settlement
+  // holds funds on `freeze ?? reviewSample` — so an older engine that omits this
+  // field keeps the prior freeze-on-review behavior. See CLAWMIN-10.
+  freeze?: boolean;
   creditClass?: CreditClass; // override which credit class an award/grant lands in
 }
 
