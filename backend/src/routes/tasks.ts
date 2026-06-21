@@ -47,14 +47,13 @@ const VerifyResultSchema = z.object({
   score: z.number().min(0).max(10).optional(),
 });
 
-export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter?: RateLimiter } = {}) {
+export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter: RateLimiter }) {
   // Money-moving routes (publish escrow, claim, submit, verify→settle) get an
   // explicit per-route limiter on top of the global one: an authed, balance-
   // mutating endpoint warrants a tighter, dedicated budget (defense-in-depth).
-  // preHandler runs auth first, then the limit (keyed by account).
-  const authed = opts.taskLimiter
-    ? { preHandler: [authMiddleware, opts.taskLimiter.hook] }
-    : { preHandler: authMiddleware };
+  // The limiter hook is named directly in each route's preHandler array (not via
+  // an indirection) so it's statically visible to scanners.
+  const rateLimit = opts.taskLimiter.hook;
   // List open tasks (public browse, but auth required for claim)
   app.get('/tasks', { preHandler: authMiddleware }, async (req, reply) => {
     const { status, type, limit, offset } = req.query as Record<string, string>;
@@ -76,7 +75,7 @@ export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter?: Rat
   });
 
   // Publish a new task
-  app.post('/tasks', authed, async (req, reply) => {
+  app.post('/tasks', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
     const body = CreateTaskSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
     try {
@@ -105,14 +104,14 @@ export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter?: Rat
   });
 
   // Claim a task (agent takes ownership)
-  app.post('/tasks/:id/claim', authed, async (req, reply) => {
+  app.post('/tasks/:id/claim', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const execution = await claimTask(id, req.account.id);
     return reply.status(201).send(execution);
   });
 
   // Submit result for a claimed task
-  app.post('/tasks/:id/submit', authed, async (req, reply) => {
+  app.post('/tasks/:id/submit', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = SubmitResultSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
@@ -126,7 +125,7 @@ export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter?: Rat
   });
 
   // Publisher verifies/rejects a submitted result
-  app.post('/tasks/:id/verify', authed, async (req, reply) => {
+  app.post('/tasks/:id/verify', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = VerifyResultSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
