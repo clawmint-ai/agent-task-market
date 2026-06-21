@@ -285,6 +285,24 @@ async function moveEarnedFrozen(
   reason: string,
   opts: { description?: string }
 ): Promise<{ earned_balance: number; frozen_earned_balance: number }> {
+  return db.transaction().execute((trx) => moveEarnedFrozenInTrx(trx, direction, accountId, amount, reason, opts));
+}
+
+/**
+ * Transaction-scoped core of the earned↔frozen move. Exported so callers that
+ * must do the move ATOMICALLY with other writes (e.g. riskFlagService.release
+ * unfreezes while flipping the flag's status in the SAME txn) can share this one
+ * guarded, conservation-safe implementation instead of inlining a copy. The
+ * standalone freezeEarned/unfreezeEarned wrap this in their own transaction.
+ */
+export async function moveEarnedFrozenInTrx(
+  trx: DB,
+  direction: 'freeze' | 'unfreeze',
+  accountId: string,
+  amount: number,
+  reason: string,
+  opts: { description?: string } = {}
+): Promise<{ earned_balance: number; frozen_earned_balance: number }> {
   if (!Number.isInteger(amount) || amount <= 0) throw new Error('Amount must be a positive integer');
   const freezing = direction === 'freeze';
   const sign = freezing ? -1 : 1; // freeze: earned↓ frozen↑ ; unfreeze: earned↑ frozen↓
@@ -294,35 +312,33 @@ async function moveEarnedFrozen(
   const insufficient = freezing
     ? 'Insufficient earned balance to freeze'
     : 'Insufficient frozen balance to unfreeze';
-  return db.transaction().execute(async (trx) => {
-    const updated = await trx
-      .updateTable('accounts')
-      .set({
-        earned_balance: sql<number>`earned_balance + ${sign * amount}`,
-        frozen_earned_balance: sql<number>`frozen_earned_balance + ${-sign * amount}`,
-        updated_at: sql<Date>`now()`,
-      } as any)
-      .where('id', '=', accountId)
-      .where(guard)
-      .returning(['earned_balance', 'frozen_earned_balance'])
-      .executeTakeFirst();
-    if (!updated) {
-      const exists = await trx.selectFrom('accounts').select('id').where('id', '=', accountId).executeTakeFirst();
-      throw new Error(exists ? insufficient : 'Account not found');
-    }
-    // delta=0 audit row: the earned class total is unchanged, only its
-    // spendable/frozen split. balance_after records the post-move spendable.
-    await trx
-      .insertInto('credit_ledger')
-      .values({
-        id: randomUUID(), account_id: accountId, delta: 0,
-        balance_after: Number(updated.earned_balance), credit_class: 'earned',
-        reason, ref_id: null,
-        description: opts.description ?? `${freezing ? 'Froze' : 'Unfroze'} ${amount} earned credits`,
-      })
-      .execute();
-    return { earned_balance: Number(updated.earned_balance), frozen_earned_balance: Number(updated.frozen_earned_balance) };
-  });
+  const updated = await trx
+    .updateTable('accounts')
+    .set({
+      earned_balance: sql<number>`earned_balance + ${sign * amount}`,
+      frozen_earned_balance: sql<number>`frozen_earned_balance + ${-sign * amount}`,
+      updated_at: sql<Date>`now()`,
+    } as any)
+    .where('id', '=', accountId)
+    .where(guard)
+    .returning(['earned_balance', 'frozen_earned_balance'])
+    .executeTakeFirst();
+  if (!updated) {
+    const exists = await trx.selectFrom('accounts').select('id').where('id', '=', accountId).executeTakeFirst();
+    throw new Error(exists ? insufficient : 'Account not found');
+  }
+  // delta=0 audit row: the earned class total is unchanged, only its
+  // spendable/frozen split. balance_after records the post-move spendable.
+  await trx
+    .insertInto('credit_ledger')
+    .values({
+      id: randomUUID(), account_id: accountId, delta: 0,
+      balance_after: Number(updated.earned_balance), credit_class: 'earned',
+      reason, ref_id: null,
+      description: opts.description ?? `${freezing ? 'Froze' : 'Unfroze'} ${amount} earned credits`,
+    })
+    .execute();
+  return { earned_balance: Number(updated.earned_balance), frozen_earned_balance: Number(updated.frozen_earned_balance) };
 }
 
 /** Freeze earned credits: earned_balance → frozen_earned_balance (risk hold). */

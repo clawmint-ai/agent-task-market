@@ -1,6 +1,6 @@
 import db, { DB, withTransaction } from '../db/pool';
-import { sql } from 'kysely';
 import { randomUUID } from 'crypto';
+import { moveEarnedFrozenInTrx } from './accountService';
 
 /**
  * Risk-flag persistence + admin resolution (CLAWMIN-23). A flag is the audit record
@@ -63,7 +63,7 @@ export async function releaseRiskFlag(flagId: string, resolvedBy: string): Promi
     if (!flag) throw new Error('Risk flag not found or not open');
 
     if (flag.amount > 0) {
-      await unfreezeEarnedInTrx(trx, flag.account_id, flag.amount, 'risk_release', {
+      await moveEarnedFrozenInTrx(trx, 'unfreeze', flag.account_id, flag.amount, 'risk_release', {
         description: `Risk flag ${flagId} released by ${resolvedBy}`,
       });
     }
@@ -91,41 +91,4 @@ export async function confirmRiskFlag(flagId: string, resolvedBy: string): Promi
     .executeTakeFirst();
   if (!updated) throw new Error('Risk flag not found or not open');
   return updated.id;
-}
-
-// unfreezeEarned in accountService owns its own transaction; the release path needs
-// the unfreeze to be atomic with the flag update, so we inline the same guarded move
-// here against the caller's trx. Keeps the conservation property (delta=0 audit row).
-async function unfreezeEarnedInTrx(
-  trx: DB,
-  accountId: string,
-  amount: number,
-  reason: string,
-  opts: { description?: string }
-): Promise<void> {
-  const updated = await trx
-    .updateTable('accounts')
-    .set({
-      earned_balance: sql<number>`earned_balance + ${amount}`,
-      frozen_earned_balance: sql<number>`frozen_earned_balance - ${amount}`,
-      updated_at: sql<Date>`now()`,
-    } as any)
-    .where('id', '=', accountId)
-    .where(sql<boolean>`frozen_earned_balance >= ${amount}`)
-    .returning(['earned_balance'])
-    .executeTakeFirst();
-  if (!updated) throw new Error('Insufficient frozen balance to release');
-  await trx
-    .insertInto('credit_ledger')
-    .values({
-      id: randomUUID(),
-      account_id: accountId,
-      delta: 0,
-      balance_after: Number(updated.earned_balance),
-      credit_class: 'earned',
-      reason,
-      ref_id: null,
-      description: opts.description ?? `Unfroze ${amount} earned credits`,
-    })
-    .execute();
 }
