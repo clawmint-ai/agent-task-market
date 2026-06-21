@@ -374,6 +374,31 @@ restart; it is advisory (flags/review), never a source of truth for funds.
 > loss). Persisting the store (Redis/Postgres) is a deliberate pre-scale
 > follow-up — the interface in `observationStore.ts` is built to swap.
 
+### Reviewing frozen rewards (CLAWMIN-48)
+
+When `self_dealing`/`collusion` flags a payout, settlement pays the reward then
+**freezes** it (`earned → frozen_earned`, conservation preserved) and opens a
+`risk_flag`. You're told a review is pending by the `RiskReviewQueueStuck` alert
+(fires on `atm_frozen_earned_total > 0` for 6h → Telegram). Resolve it with the
+`review-flags` CLI on the box — it wraps the same transactional service the admin
+API uses, so no token/HTTP needed:
+
+```bash
+# list what's held (default: open)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend \
+  npm run review-flags -- list
+
+# release: false positive → unfreeze, return the reward to the executor
+docker compose ... exec -T backend npm run review-flags -- release <flagId>
+
+# confirm: genuine abuse → uphold the freeze (credits stay held)
+docker compose ... exec -T backend npm run review-flags -- confirm <flagId>
+```
+
+`list` prints each flag's id / kind / amount / account / detail. Resolutions are
+recorded with `resolved_by='cli-admin'`. After resolving, `atm_frozen_earned_total`
+drops and the alert clears.
+
 ---
 
 ## Acceptance criteria → how to verify
