@@ -1,0 +1,17 @@
+{
+  "name": "agent-task-market-website",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^5.0.0",
+    "@astrojs/starlight": "^0.30.0",
+    "@astrojs/sitemap": "^3.2.0",
+    "sharp": "^0.33.5"
+  }
+}
