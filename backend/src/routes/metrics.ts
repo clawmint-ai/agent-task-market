@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { timingSafeEqual } from 'crypto';
 import { collectMetrics, renderPrometheus } from '../services/metricsService';
 import { HttpMetrics, renderBuildInfo } from '../domain/httpMetrics';
+import { MaintenanceMetrics } from '../domain/maintenanceMetrics';
 
 const PROM_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8';
 
@@ -31,12 +32,12 @@ function safeEqual(a: string, b: string): boolean {
  * Registered at the root (no /api prefix) so it isn't rate-limited and matches the
  * conventional scrape path.
  */
-export async function metricsRoutes(app: FastifyInstance, opts: { httpMetrics: HttpMetrics }) {
+export async function metricsRoutes(app: FastifyInstance, opts: { httpMetrics: HttpMetrics; maintenanceMetrics?: MaintenanceMetrics }) {
   const TOKEN = process.env.METRICS_TOKEN;
   if (!TOKEN) {
     app.log.warn('/metrics is enabled WITHOUT auth (set METRICS_TOKEN to require a scrape token)');
   }
-  const { httpMetrics } = opts;
+  const { httpMetrics, maintenanceMetrics } = opts;
 
   app.get('/metrics', async (req, reply) => {
     if (TOKEN) {
@@ -50,7 +51,10 @@ export async function metricsRoutes(app: FastifyInstance, opts: { httpMetrics: H
     }
     const snapshot = await collectMetrics(new Date().toISOString());
     const body =
-      renderPrometheus(snapshot) + httpMetrics.render() + renderBuildInfo(BUILD_INFO);
+      renderPrometheus(snapshot) +
+      httpMetrics.render() +
+      (maintenanceMetrics ? maintenanceMetrics.render() : '') +
+      renderBuildInfo(BUILD_INFO);
     return reply.header('content-type', PROM_CONTENT_TYPE).send(body);
   });
 }

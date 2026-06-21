@@ -85,3 +85,26 @@ groups:
             POST /admin/risk-flags/:id/release|confirm (requires ADMIN_TOKEN set, else
             those routes 404). Cross-check atm_risk_flags{status="open"} for the flag
             count. Work the queue or the held funds strand.
+
+  - name: maintenance
+    rules:
+      # ── P2: the background maintenance sweep is failing ─────────────────────
+      # The sweep reclaims past-deadline tasks (refunds publishers) and releases
+      # stale claims (frees max_executors=1 tasks). A failing sweep strands those
+      # silently: refunds never land, abandoned claims lock tasks forever. The loop
+      # logs at ERROR and increments atm_maintenance_runs_total{outcome="error"};
+      # alert when any errors accrue over 15m (the sweep runs every minute, so a
+      # genuine fault produces several). Warning, not a page — it's a slow leak.
+      - alert: MaintenanceSweepFailing
+        expr: increase(atm_maintenance_runs_total{outcome="error"}[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Maintenance sweep is failing ({{ $labels.task }})"
+          description: >-
+            atm_maintenance_runs_total{outcome="error",task="{{ $labels.task }}"} has
+            risen over 15m — the periodic {{ $labels.task }} sweep is erroring. A stuck
+            reclaim strands publisher refunds on expired tasks; a stuck release locks
+            abandoned-claim tasks forever. Check the backend logs for
+            "maintenance: ...Failed" at ERROR.
