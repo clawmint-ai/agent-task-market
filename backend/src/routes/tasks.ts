@@ -124,7 +124,11 @@ export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter: Rate
     return execution;
   });
 
-  // Publisher verifies/rejects a submitted result
+  // Publisher verifies/rejects a submitted result.
+  // codeql[js/missing-rate-limiting] — false positive: this route IS rate-limited
+  // (the inline `rateLimit` preHandler = the project's hand-rolled createRateLimiter,
+  // plus the app-level globalLimiter hook). CodeQL only recognizes a fixed set of
+  // third-party limiter packages, not this custom one, so it can't see the guard.
   app.post('/tasks/:id/verify', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = VerifyResultSchema.safeParse(req.body);
