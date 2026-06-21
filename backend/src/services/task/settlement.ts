@@ -10,6 +10,39 @@ import { TaskExecution, parseExecution } from './mappers';
 import { getRiskEngine } from '../../risk';
 import { logger } from '../../runtime/logger';
 
+/**
+ * Refund an escrowed bounty to the publisher, preserving the EXACT gift/earned
+ * split that was escrowed (anti-laundering — credits return to the class they
+ * came from). Both rejection-refund and deadline-reclaim need this identical
+ * two-class credit; keeping it in one place means the conservation-sensitive
+ * refund logic can't drift between the two call sites. Runs inside the caller's
+ * transaction. `context` only varies the ledger description.
+ */
+async function refundEscrowSplit(
+  trx: Transaction<Database>,
+  publisherId: string,
+  taskId: string,
+  taskTitle: string,
+  split: { gift: number; earned: number },
+  context: 'rejected' | 'reclaim',
+): Promise<void> {
+  const label = context === 'rejected' ? 'Refund' : 'Deadline reclaim';
+  if (split.gift > 0) {
+    await creditCredits(trx, publisherId, split.gift, 'task_refund', {
+      refId: taskId,
+      description: `${label} (gift) ${context === 'rejected' ? '- rejected result ' : ''}for task: ${taskTitle}`,
+      creditClass: 'gift',
+    });
+  }
+  if (split.earned > 0) {
+    await creditCredits(trx, publisherId, split.earned, 'task_refund', {
+      refId: taskId,
+      description: `${label} (earned) ${context === 'rejected' ? '- rejected result ' : ''}for task: ${taskTitle}`,
+      creditClass: 'earned',
+    });
+  }
+}
+
 export async function verifyResult(params: {
   taskId: string;
   executionId: string;
@@ -249,20 +282,7 @@ export async function finalizeExecution(params: {
     await applyReputation(trx, updated.executor_id, 0, 'task_rejected', updated.id);
     if (action.kind === 'reject_refund') {
       // Refund the EXACT gift/earned split that was escrowed (anti-laundering).
-      if (action.gift > 0) {
-        await creditCredits(trx, task.publisher_id, action.gift, 'task_refund', {
-          refId: task.id,
-          description: `Refund (gift) - rejected result for task: ${task.title}`,
-          creditClass: 'gift',
-        });
-      }
-      if (action.earned > 0) {
-        await creditCredits(trx, task.publisher_id, action.earned, 'task_refund', {
-          refId: task.id,
-          description: `Refund (earned) - rejected result for task: ${task.title}`,
-          creditClass: 'earned',
-        });
-      }
+      await refundEscrowSplit(trx, task.publisher_id, task.id, task.title, { gift: action.gift, earned: action.earned }, 'rejected');
       // A refund is TERMINAL. The escrowed bounty has been returned to the
       // publisher, so the task is no longer funded — reopening it (the old
       // behavior) left a live escrow on a claimable task, which the deadline
@@ -354,20 +374,7 @@ export async function reclaimExpiredTasks(now: Date): Promise<{ reclaimed: numbe
       }
 
       // Refund the exact escrow split, then fail the task.
-      if (action.gift > 0) {
-        await creditCredits(trx, task.publisher_id, action.gift, 'task_refund', {
-          refId: task.id,
-          description: `Deadline reclaim (gift) for task: ${task.title}`,
-          creditClass: 'gift',
-        });
-      }
-      if (action.earned > 0) {
-        await creditCredits(trx, task.publisher_id, action.earned, 'task_refund', {
-          refId: task.id,
-          description: `Deadline reclaim (earned) for task: ${task.title}`,
-          creditClass: 'earned',
-        });
-      }
+      await refundEscrowSplit(trx, task.publisher_id, task.id, task.title, { gift: action.gift, earned: action.earned }, 'reclaim');
       await trx.updateTable('tasks').set({ status: 'failed' }).where('id', '=', id).execute();
       reclaimed++;
     });
