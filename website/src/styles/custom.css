@@ -1,10 +1,12 @@
+/* Dark mode (default :root) — bright teal on dark, openclaw-adjacent */
 :root {
-  --sl-color-accent-low: #1d3478;
-  --sl-color-accent: #3b6cf6;
-  --sl-color-accent-high: #bcd3ff;
+  --sl-color-accent-low: #053b35;
+  --sl-color-accent: #00e5cc;
+  --sl-color-accent-high: #9ff5e9;
 }
+/* Light mode — darkened teal so links/buttons stay readable on white (WCAG AA) */
 :root[data-theme='light'] {
-  --sl-color-accent-low: #d9e6ff;
-  --sl-color-accent: #244fe0;
-  --sl-color-accent-high: #1d3897;
+  --sl-color-accent-low: #b8f0e8;
+  --sl-color-accent: #0a8c7d;
+  --sl-color-accent-high: #06463f;
 }
