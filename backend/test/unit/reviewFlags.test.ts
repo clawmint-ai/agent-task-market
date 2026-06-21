@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { parseArgs } from '../../scripts/review-flags';
+import { parseArgs } from '../../scripts/review-flags-args';
 
 test('list defaults to open when no status given', () => {
   assert.deepEqual(parseArgs(['list']), { cmd: 'list', status: 'open' });

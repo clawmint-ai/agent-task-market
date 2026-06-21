@@ -15,47 +15,7 @@
  */
 import { listRiskFlags, releaseRiskFlag, confirmRiskFlag } from '../src/services/riskFlagService';
 import { closeDb } from '../src/db/pool';
-
-const STATUSES = ['open', 'frozen', 'released'] as const;
-type FlagStatus = (typeof STATUSES)[number];
-
-export type ParsedCommand =
-  | { cmd: 'list'; status: FlagStatus }
-  | { cmd: 'release'; flagId: string }
-  | { cmd: 'confirm'; flagId: string }
-  | { cmd: 'error'; message: string };
-
-const USAGE = [
-  'Usage: npm run review-flags -- <command>',
-  '  list [open|frozen|released]   list flags (default: open)',
-  '  release <flagId>              unfreeze the held reward (return to executor)',
-  '  confirm <flagId>              uphold the freeze (credits stay held)',
-].join('\n');
-
-/**
- * Pure: map raw argv (after the script name) to a typed command. No I/O, so every
- * branch is unit-testable. `release`/`confirm` require a flagId; `list` takes an
- * optional status that must be one of STATUSES.
- */
-export function parseArgs(argv: string[]): ParsedCommand {
-  const [cmd, arg] = argv;
-  switch (cmd) {
-    case 'list': {
-      const status = (arg ?? 'open') as FlagStatus;
-      if (!STATUSES.includes(status)) {
-        return { cmd: 'error', message: `invalid status "${arg}" (want: ${STATUSES.join('|')})` };
-      }
-      return { cmd: 'list', status };
-    }
-    case 'release':
-    case 'confirm': {
-      if (!arg) return { cmd: 'error', message: `${cmd} requires a <flagId>` };
-      return { cmd, flagId: arg };
-    }
-    default:
-      return { cmd: 'error', message: cmd ? `unknown command "${cmd}"` : 'no command given' };
-  }
-}
+import { parseArgs, USAGE } from './review-flags-args';
 
 const RESOLVED_BY = 'cli-admin'; // distinguishes CLI resolutions from the HTTP admin path
 
