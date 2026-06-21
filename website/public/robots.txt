@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://clawmint-ai.github.io/agent-task-market/sitemap-index.xml
+Sitemap: https://clawmint.space/sitemap-index.xml

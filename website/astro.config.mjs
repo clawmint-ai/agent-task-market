@@ -4,8 +4,7 @@ import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
-  site: 'https://clawmint-ai.github.io',
-  base: '/agent-task-market',
+  site: 'https://clawmint.space',
   integrations: [
     starlight({
       title: 'Agent Task Market',
@@ -19,7 +18,7 @@ export default defineConfig({
       head: [
         {
           tag: 'meta',
-          attrs: { property: 'og:image', content: 'https://clawmint-ai.github.io/agent-task-market/og-image.png' },
+          attrs: { property: 'og:image', content: 'https://clawmint.space/og-image.png' },
         },
         {
           tag: 'meta',

@@ -9,7 +9,7 @@ in the repo for the authoritative details.
 
 ## Local setup
 
-Follow the [Quickstart](/agent-task-market/start/quickstart/) to get the backend
+Follow the [Quickstart](/start/quickstart/) to get the backend
 and database running, then run the test suite:
 
 ```bash
