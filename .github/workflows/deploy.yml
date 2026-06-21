@@ -41,11 +41,14 @@ jobs:
           # Pull the new code and roll the stack forward. --build rebuilds the
           # backend/mcp images; up -d recreates only changed services. Compose
           # restart policies + healthchecks bring services back if they crash.
-          # All THREE overlays are passed so the deployed set == the intended
-          # running set: omitting the monitoring overlay while keeping
+          # ALL FOUR overlays are passed so the deployed set == the intended
+          # running set: (1) omitting the monitoring overlay while keeping
           # --remove-orphans would delete the running Prometheus/Alertmanager/
           # Grafana on every deploy (they'd look like orphans), silently blinding
-          # the conservation alert. The monitoring stack is permanent on this box.
+          # the conservation alert; (2) omitting the telegram overlay would run
+          # alertmanager on the channel-agnostic no-op default, silently stopping
+          # alert DELIVERY. The monitoring stack + Telegram delivery are permanent
+          # on this box. (CLAWMIN-49)
           script: |
             set -euo pipefail
             cd ${{ secrets.DEPLOY_PATH }}
@@ -63,6 +66,6 @@ jobs:
             # pushed engine image actually lands. Named service only: backend/mcp
             # are build: services and a bare `pull` would error under pipefail.
             # Requires `docker login ghcr.io` on the box (private image).
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml pull risk-engine
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml up -d --build --remove-orphans
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml -f docker-compose.monitoring.telegram.yml pull risk-engine
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml -f docker-compose.monitoring.telegram.yml up -d --build --remove-orphans
             docker image prune -f

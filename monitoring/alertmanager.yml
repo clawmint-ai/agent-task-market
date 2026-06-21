@@ -1,20 +1,22 @@
 # Alertmanager routing for the Agent Task Market.
 #
-# Alerts deliver to Telegram. Both secrets are read from FILES so nothing lands
-# in git — the operator drops them on the box before bringing the stack up:
-#   monitoring/secrets/telegram_bot_token   (the BotFather token)
-#   monitoring/secrets/telegram_chat_id     (the target chat/group id)
-# These are mounted into the alertmanager container at /etc/alertmanager/secrets/
-# (see docker-compose.monitoring.yml). The dir is gitignored.
+# This is the CHANNEL-AGNOSTIC default: it boots without any external secrets and
+# delivers nowhere (a no-op webhook). Wire your real destination by uncommenting
+# the Slack/PagerDuty blocks below and providing secrets via file — do NOT commit
+# real keys here.
+#
+# clawmint's own deployment delivers to Telegram via an OPTIONAL overlay
+# (docker-compose.monitoring.telegram.yml + alertmanager.telegram.yml), so this
+# generic file stays free of any one operator's channel choice. See docs/deploy.md.
 #
 # The critical route (severity=critical, e.g. ConservationBroken) is split out so
-# it pages with a tight 30m repeat, while warnings batch on the default route.
+# it can page 24/7 with a tight repeat interval, while warnings batch.
 
 global:
   resolve_timeout: 5m
 
 route:
-  receiver: telegram
+  receiver: default
   group_by: ['alertname']
   group_wait: 30s
   group_interval: 5m
@@ -23,35 +25,36 @@ route:
     # Money-invariant breaks page immediately and re-page every 30m until resolved.
     - matchers:
         - severity = "critical"
-      receiver: telegram-critical
+      receiver: pager
       group_wait: 0s
       repeat_interval: 30m
       continue: false
 
 receivers:
-  - name: telegram
-    telegram_configs:
-      - bot_token_file: /etc/alertmanager/secrets/telegram_bot_token
-        chat_id: __CHAT_ID__
-        parse_mode: HTML
+  - name: default
+    # Replace with a real receiver. Left as a no-op webhook so the stack boots
+    # without external secrets.
+    webhook_configs:
+      - url: http://127.0.0.1:5001/noop
         send_resolved: true
-        message: |-
-          <b>{{ .Status | toUpper }}</b> {{ .CommonLabels.alertname }}
-          {{ range .Alerts }}{{ .Annotations.summary }}
-          {{ .Annotations.description }}
-          {{ end }}
 
-  - name: telegram-critical
-    telegram_configs:
-      - bot_token_file: /etc/alertmanager/secrets/telegram_bot_token
-        chat_id: __CHAT_ID__
-        parse_mode: HTML
+  - name: pager
+    # ── PagerDuty (uncomment + set PD routing key via a secret file) ──
+    # pagerduty_configs:
+    #   - routing_key_file: /etc/alertmanager/secrets/pd_routing_key
+    #     description: '{{ .CommonAnnotations.summary }}'
+    #     severity: critical
+    #
+    # ── Slack (uncomment + set the webhook URL via a secret file) ──
+    # slack_configs:
+    #   - api_url_file: /etc/alertmanager/secrets/slack_webhook
+    #     channel: '#atm-alerts'
+    #     title: '{{ .CommonAnnotations.summary }}'
+    #     text: '{{ .CommonAnnotations.description }}'
+    #     send_resolved: true
+    webhook_configs:
+      - url: http://127.0.0.1:5001/page
         send_resolved: true
-        message: |-
-          🚨 <b>CRITICAL — {{ .CommonLabels.alertname }}</b> ({{ .Status | toUpper }})
-          {{ range .Alerts }}{{ .Annotations.summary }}
-          {{ .Annotations.description }}
-          {{ end }}
 
 inhibit_rules:
   # When the backend is down (up=0), conservation can't be evaluated — suppress

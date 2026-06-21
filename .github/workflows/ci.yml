@@ -99,7 +99,7 @@ jobs:
       - name: Validate merged prod + monitoring overlays
         env:
           POSTGRES_PASSWORD: ci-validation-dummy
-        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml config -q
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml -f docker-compose.monitoring.telegram.yml config -q
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       # Clean build of every buildable image (backend runtime, backend builder via

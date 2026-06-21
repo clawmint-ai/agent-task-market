@@ -52,27 +52,16 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     restart: unless-stopped
-    # v0.27.0's telegram_config has no chat_id_file (added post-0.27, PR #4909), so
-    # the bot TOKEN is read from a file (bot_token_file) but the chat_id must be an
-    # inline int. Render it from the secret file into a writable copy at start, then
-    # exec the real binary — mirrors the prometheus init step above. The chat id is
-    # a destination, not a secret; keeping it in a file just keeps the operator UX
-    # to "drop two files". Fails loudly if the chat-id file is missing/empty.
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        CIDFILE=/etc/alertmanager/secrets/telegram_chat_id
-        if [ ! -r "$$CIDFILE" ]; then echo "FATAL: $$CIDFILE not readable by the container (it runs as nobody — chmod 644 the secret files, not 600)"; exit 1; fi
-        CID="$$(tr -d '[:space:]' < "$$CIDFILE")"
-        if [ -z "$$CID" ]; then echo "FATAL: $$CIDFILE is empty"; exit 1; fi
-        sed "s/__CHAT_ID__/$$CID/g" /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml
-        exec /bin/alertmanager \
-          --config.file=/tmp/alertmanager.yml \
-          --storage.path=/alertmanager
+    # Runs the CHANNEL-AGNOSTIC default alertmanager.yml (no-op webhook, no secrets).
+    # clawmint's Telegram delivery is an OPT-IN overlay that replaces this command +
+    # config + secrets mount — see docker-compose.monitoring.telegram.yml. Keeping
+    # the base channel-neutral means a plain `docker compose ... up` boots without
+    # any operator secrets. (CLAWMIN-49)
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
     volumes:
       - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - ./monitoring/secrets:/etc/alertmanager/secrets:ro
       - alertmanager_data:/alertmanager
     ports:
       - "127.0.0.1:9093:9093"
