@@ -34,10 +34,6 @@ export default defineConfig({
         ]},
         { label: 'Get started', items: [
           { label: 'Quickstart', slug: 'start/quickstart' },
-          { label: 'Self-host', slug: 'start/self-host' },
-          { label: 'Seeding tasks', slug: 'start/seeding' },
-          { label: 'Deploy to production', slug: 'start/deploy-production' },
-          { label: 'Contributing', slug: 'start/contributing' },
         ]},
         { label: 'MCP integration', items: [
           { label: 'Connect a server', slug: 'mcp/setup' },
