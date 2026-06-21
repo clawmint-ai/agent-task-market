@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { reclaimExpiredTasks, releaseStaleClaims } from '../services/task';
+import { MaintenanceMetrics } from '../domain/maintenanceMetrics';
 
 /**
  * Periodic maintenance loop: reclaims past-deadline tasks (refund publisher,
@@ -17,7 +18,7 @@ export interface MaintenanceLoop {
   stop: () => void;
 }
 
-export function startMaintenanceLoop(log: FastifyBaseLogger): MaintenanceLoop | null {
+export function startMaintenanceLoop(log: FastifyBaseLogger, metrics?: MaintenanceMetrics): MaintenanceLoop | null {
   if (process.env.MAINTENANCE_ENABLED === '0') {
     log.info('maintenance loop disabled (MAINTENANCE_ENABLED=0)');
     return null;
@@ -35,18 +36,25 @@ export function startMaintenanceLoop(log: FastifyBaseLogger): MaintenanceLoop | 
     running = true;
     try {
       // Run sequentially; each guards its own errors so one failing doesn't
-      // skip the other or kill the loop.
+      // skip the other or kill the loop. A failure is logged at ERROR AND counted
+      // (atm_maintenance_runs_total{outcome="error"}) so the monitoring stack can
+      // ALERT — an ERROR log alone isn't actionable (nobody tails it), and a stuck
+      // sweep strands publisher refunds / locks max_executors=1 tasks forever.
       try {
         const r = await reclaimExpiredTasks(now);
         if (r.reclaimed > 0) log.info({ ...r }, 'maintenance: reclaimed expired tasks');
+        metrics?.record('reclaim', 'ok');
       } catch (e) {
         log.error(e, 'maintenance: reclaimExpiredTasks failed');
+        metrics?.record('reclaim', 'error');
       }
       try {
         const s = await releaseStaleClaims(now);
         if (s.released > 0) log.info({ ...s }, 'maintenance: released stale claims');
+        metrics?.record('release', 'ok');
       } catch (e) {
         log.error(e, 'maintenance: releaseStaleClaims failed');
+        metrics?.record('release', 'error');
       }
     } finally {
       running = false;

@@ -11,6 +11,7 @@ import { metricsRoutes } from './routes/metrics';
 import { createRateLimiter, keyByAccountOrIp, keyByIp, RateLimiter } from './middleware/rateLimit';
 import { startMaintenanceLoop } from './runtime/maintenance';
 import { HttpMetrics, normalizeRoute } from './domain/httpMetrics';
+import { MaintenanceMetrics } from './domain/maintenanceMetrics';
 import { trustProxy } from './config';
 
 const numEnv = (name: string, def: number): number => {
@@ -37,7 +38,7 @@ function corsOrigin(): boolean | string[] {
 
 /** Build the Fastify app (routes, plugins, error handler) without listening.
  *  Exported so tests can use app.inject() without binding a port. */
-export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
+export async function buildApp(opts: { logger?: boolean; maintenanceMetrics?: MaintenanceMetrics } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? true, trustProxy: trustProxy() });
 
   await app.register(cors, { origin: corsOrigin() });
@@ -74,6 +75,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // ── HTTP RED metrics ─────────────────────────────────────────────────────
   // Shared accumulator: the onResponse hook records, the /metrics route renders.
   const httpMetrics = new HttpMetrics();
+  const maintenanceMetrics = opts.maintenanceMetrics ?? new MaintenanceMetrics();
 
   // onResponse fires after the reply is sent, so reply.elapsedTime is final.
   // Skip the scrape path itself (/metrics) so polling doesn't self-pollute the
@@ -132,7 +134,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(adminRoutes, { prefix: '/api/v1', adminLimiter });
   await app.register(eventRoutes, { prefix: '/api/v1' });
   // Observability: Prometheus scrape endpoint at the root (no /api prefix).
-  await app.register(metricsRoutes, { httpMetrics });
+  await app.register(metricsRoutes, { httpMetrics, maintenanceMetrics });
 
   return app;
 }
@@ -142,13 +144,14 @@ async function main() {
   // dirty server.
   await runMigrations();
 
-  const app = await buildApp();
+  const maintenanceMetrics = new MaintenanceMetrics();
+  const app = await buildApp({ maintenanceMetrics });
   const port = parseInt(process.env.PORT || '3000', 10);
   await app.listen({ port, host: '0.0.0.0' });
   app.log.info(`🚀 Agent Task Market API running on http://0.0.0.0:${port}`);
 
   // Background maintenance: reclaim expired tasks + release stale claims.
-  const maintenance = startMaintenanceLoop(app.log);
+  const maintenance = startMaintenanceLoop(app.log, maintenanceMetrics);
 
   // ── Graceful shutdown ────────────────────────────────────────────────────
   // On SIGTERM/SIGINT: stop timers, drain in-flight requests (app.close), then
