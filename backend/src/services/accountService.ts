@@ -97,7 +97,7 @@ export async function rotateApiKey(accountId: string): Promise<string> {
 
   const updated = await db
     .updateTable('accounts')
-    .set({ api_key_hash: newHash, updated_at: sql<Date>`now()` } as any)
+    .set({ api_key_hash: newHash, updated_at: sql`now()` })
     .where('id', '=', accountId)
     .where('is_active', '=', true)
     .executeTakeFirst();
@@ -148,7 +148,7 @@ export async function debitCredits(
   // concurrent debit from driving the balance negative).
   const updated = await conn
     .updateTable('accounts')
-    .set({ [balanceCol]: sql<number>`${col} - ${amount}`, updated_at: sql<Date>`now()` } as any)
+    .set({ [balanceCol]: sql<number>`${col} - ${amount}`, updated_at: sql`now()` } as Record<string, unknown>)
     .where('id', '=', accountId)
     .where(sql<boolean>`${col} >= ${amount}`)
     .returning(sql<number>`${col}`.as('balance'))
@@ -190,7 +190,7 @@ export async function creditCredits(
 
   const updated = await conn
     .updateTable('accounts')
-    .set({ [balanceCol]: sql<number>`${col} + ${amount}`, updated_at: sql<Date>`now()` } as any)
+    .set({ [balanceCol]: sql<number>`${col} + ${amount}`, updated_at: sql`now()` } as Record<string, unknown>)
     .where('id', '=', accountId)
     .returning(sql<number>`${col}`.as('balance'))
     .executeTakeFirst();
@@ -319,8 +319,8 @@ export async function moveEarnedFrozenInTrx(
     .set({
       earned_balance: sql<number>`earned_balance + ${sign * amount}`,
       frozen_earned_balance: sql<number>`frozen_earned_balance + ${-sign * amount}`,
-      updated_at: sql<Date>`now()`,
-    } as any)
+      updated_at: sql`now()`,
+    } as Record<string, unknown>)
     .where('id', '=', accountId)
     .where(guard)
     .returning(['earned_balance', 'frozen_earned_balance'])

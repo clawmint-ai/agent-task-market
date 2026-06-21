@@ -206,8 +206,8 @@ export async function finalizeExecution(params: {
             .set({
               earned_balance: sql<number>`earned_balance - ${task.reward_credits}`,
               frozen_earned_balance: sql<number>`frozen_earned_balance + ${task.reward_credits}`,
-              updated_at: sql<Date>`now()`,
-            } as any)
+              updated_at: sql`now()`,
+            } as Record<string, unknown>)
             .where('id', '=', updated.executor_id)
             .where(sql<boolean>`earned_balance >= ${task.reward_credits}`)
             .returning(['earned_balance'])
