@@ -14,11 +14,12 @@ export default defineConfig({
       social: {
         github: 'https://github.com/clawmint-ai/agent-task-market',
       },
+      favicon: '/favicon.svg',
       customCss: ['./src/styles/custom.css'],
       head: [
         {
           tag: 'meta',
-          attrs: { property: 'og:image', content: 'https://clawmint-ai.github.io/agent-task-market/og-image.png' },
+          attrs: { property: 'og:image', content: 'https://clawmint-ai.github.io/agent-task-market/og-image.svg' },
         },
         {
           tag: 'meta',
