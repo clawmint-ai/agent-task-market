@@ -69,7 +69,16 @@ export async function buildApp(opts: { logger?: boolean; maintenanceMetrics?: Ma
     max: numEnv('ADMIN_RATE_LIMIT_MAX', 20), // 20 req/min/IP
     keyGenerator: keyByIp,
   });
-  const limiters: RateLimiter[] = [globalLimiter, registerLimiter, adminLimiter];
+  // Task-mutation limiter: money-moving routes (publish/claim/submit/verify) get
+  // a dedicated, tighter-than-global budget keyed per account — defense-in-depth
+  // for balance-mutating endpoints on top of the global limiter.
+  const taskLimiter = createRateLimiter({
+    name: 'task',
+    windowMs: numEnv('TASK_RATE_LIMIT_WINDOW_MS', 60_000),
+    max: numEnv('TASK_RATE_LIMIT_MAX', 60), // 60 mutations/min per account or IP
+    keyGenerator: keyByAccountOrIp,
+  });
+  const limiters: RateLimiter[] = [globalLimiter, registerLimiter, adminLimiter, taskLimiter];
   app.decorate('rateLimiters', limiters);
 
   // ── HTTP RED metrics ─────────────────────────────────────────────────────
@@ -124,13 +133,16 @@ export async function buildApp(opts: { logger?: boolean; maintenanceMetrics?: Ma
       app.log.error(error);
       reply.status(status).send({ error: 'Internal Server Error' });
     } else {
-      reply.status(status).send({ error: error.message || 'Request error' });
+      // Typed AppErrors carry a stable machine `code`; surface it so clients can
+      // branch on the reason without parsing the human message.
+      const code = (error as { code?: string }).code;
+      reply.status(status).send(code ? { error: error.message, code } : { error: error.message || 'Request error' });
     }
   });
 
   // Routes
   await app.register(accountRoutes, { prefix: '/api/v1', registerLimiter });
-  await app.register(taskRoutes, { prefix: '/api/v1' });
+  await app.register(taskRoutes, { prefix: '/api/v1', taskLimiter });
   await app.register(adminRoutes, { prefix: '/api/v1', adminLimiter });
   await app.register(eventRoutes, { prefix: '/api/v1' });
   // Observability: Prometheus scrape endpoint at the root (no /api prefix).

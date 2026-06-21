@@ -9,6 +9,7 @@ import { decideFinalize, decideReclaim, decideStaleRelease, decideRiskHold } fro
 import { TaskExecution, parseExecution } from './mappers';
 import { getRiskEngine } from '../../risk';
 import { logger } from '../../runtime/logger';
+import { BadRequestError } from '../../domain/errors';
 
 /**
  * Refund an escrowed bounty to the publisher, preserving the EXACT gift/earned
@@ -57,7 +58,7 @@ export async function verifyResult(params: {
     .where('id', '=', params.taskId)
     .where('publisher_id', '=', params.publisherId)
     .executeTakeFirst();
-  if (!owns) throw new Error('Task not found or not owned by you');
+  if (!owns) throw new BadRequestError('Task not found or not owned by you');
   return finalizeExecution({
     taskId: params.taskId,
     executionId: params.executionId,
@@ -155,7 +156,7 @@ export async function finalizeExecution(params: {
         .where('status', '=', 'submitted')
         .returning('id')
         .executeTakeFirst();
-      if (!sup) throw new Error('Execution not found or not submitted');
+      if (!sup) throw new BadRequestError('Execution not found or not submitted');
       return;
     }
 
@@ -175,7 +176,7 @@ export async function finalizeExecution(params: {
       .where('status', '=', 'submitted')
       .returning(['id', 'executor_id'])
       .executeTakeFirst();
-    if (!updated) throw new Error('Execution not found or not submitted');
+    if (!updated) throw new BadRequestError('Execution not found or not submitted');
 
     if (action.kind === 'pay_winner') {
       // Pay the single winner as EARNED (redeemable) — real work done, regardless

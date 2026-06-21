@@ -1,5 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth';
+import { InsufficientCreditsError } from '../domain/errors';
+import type { RateLimiter } from '../middleware/rateLimit';
 import {
   listTasks, getTaskById, createTask,
   claimTask, submitResult, verifyResult, getMyExecutions, getTaskSubmissions, getMyPublished
@@ -45,7 +47,13 @@ const VerifyResultSchema = z.object({
   score: z.number().min(0).max(10).optional(),
 });
 
-export async function taskRoutes(app: FastifyInstance) {
+export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter: RateLimiter }) {
+  // Money-moving routes (publish escrow, claim, submit, verify→settle) get an
+  // explicit per-route limiter on top of the global one: an authed, balance-
+  // mutating endpoint warrants a tighter, dedicated budget (defense-in-depth).
+  // The limiter hook is named directly in each route's preHandler array (not via
+  // an indirection) so it's statically visible to scanners.
+  const rateLimit = opts.taskLimiter.hook;
   // List open tasks (public browse, but auth required for claim)
   app.get('/tasks', { preHandler: authMiddleware }, async (req, reply) => {
     const { status, type, limit, offset } = req.query as Record<string, string>;
@@ -67,7 +75,7 @@ export async function taskRoutes(app: FastifyInstance) {
   });
 
   // Publish a new task
-  app.post('/tasks', { preHandler: authMiddleware }, async (req, reply) => {
+  app.post('/tasks', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
     const body = CreateTaskSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
     try {
@@ -88,73 +96,52 @@ export async function taskRoutes(app: FastifyInstance) {
       return reply.status(201).send(task);
     } catch (e: any) {
       if (e.message === 'Insufficient credits') {
-        return reply.status(402).send({ error: 'Insufficient credits to publish task' });
+        // Re-throw as typed so the central handler maps it (preserves 402 + adds code).
+        throw new InsufficientCreditsError('Insufficient credits to publish task');
       }
       throw e;
     }
   });
 
   // Claim a task (agent takes ownership)
-  app.post('/tasks/:id/claim', { preHandler: authMiddleware }, async (req, reply) => {
+  app.post('/tasks/:id/claim', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    try {
-      const execution = await claimTask(id, req.account.id);
-      return reply.status(201).send(execution);
-    } catch (e: any) {
-      const clientErrors = [
-        'Task not found', 'Task is not open', 'Cannot claim your own task',
-        'Already claimed this task', 'Task has reached maximum number of executors'
-      ];
-      if (clientErrors.some(msg => e.message?.startsWith(msg))) {
-        return reply.status(400).send({ error: e.message });
-      }
-      throw e;
-    }
+    const execution = await claimTask(id, req.account.id);
+    return reply.status(201).send(execution);
   });
 
   // Submit result for a claimed task
-  app.post('/tasks/:id/submit', { preHandler: authMiddleware }, async (req, reply) => {
+  app.post('/tasks/:id/submit', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = SubmitResultSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-    try {
-      const execution = await submitResult({
-        taskId: id,
-        executorId: req.account.id,
-        result: body.data.result,
-        resultMetadata: body.data.result_metadata,
-      });
-      return execution;
-    } catch (e: any) {
-      if (e.message === 'Execution not found or not in progress') {
-        return reply.status(400).send({ error: e.message });
-      }
-      throw e;
-    }
+    const execution = await submitResult({
+      taskId: id,
+      executorId: req.account.id,
+      result: body.data.result,
+      resultMetadata: body.data.result_metadata,
+    });
+    return execution;
   });
 
-  // Publisher verifies/rejects a submitted result
-  app.post('/tasks/:id/verify', { preHandler: authMiddleware }, async (req, reply) => {
+  // Publisher verifies/rejects a submitted result.
+  // codeql[js/missing-rate-limiting] — false positive: this route IS rate-limited
+  // (the inline `rateLimit` preHandler = the project's hand-rolled createRateLimiter,
+  // plus the app-level globalLimiter hook). CodeQL only recognizes a fixed set of
+  // third-party limiter packages, not this custom one, so it can't see the guard.
+  app.post('/tasks/:id/verify', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = VerifyResultSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-    try {
-      const execution = await verifyResult({
-        taskId: id,
-        executionId: body.data.execution_id,
-        publisherId: req.account.id,
-        accepted: body.data.accepted,
-        feedback: body.data.feedback,
-        score: body.data.score,
-      });
-      return execution;
-    } catch (e: any) {
-      const clientErrors = ['Task not found or not owned by you', 'Execution not found or not submitted'];
-      if (clientErrors.some(msg => e.message?.startsWith(msg))) {
-        return reply.status(400).send({ error: e.message });
-      }
-      throw e;
-    }
+    const execution = await verifyResult({
+      taskId: id,
+      executionId: body.data.execution_id,
+      publisherId: req.account.id,
+      accepted: body.data.accepted,
+      feedback: body.data.feedback,
+      score: body.data.score,
+    });
+    return execution;
   });
 
   // My executions (as executor)
