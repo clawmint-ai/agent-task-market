@@ -1,0 +1,68 @@
+# clawmint's OPTIONAL Telegram alertmanager config (operational, opt-in).
+#
+# Loaded only when the Telegram overlay (docker-compose.monitoring.telegram.yml)
+# is composed in; it swaps this whole file in for the channel-agnostic default
+# alertmanager.yml. Keeping it separate keeps the open-source default free of any
+# one operator's channel choice (CLAWMIN-49).
+#
+# Secrets are read from FILES so nothing lands in git — the operator drops them on
+# the box before bringing the stack up (see monitoring/secrets/README.md):
+#   monitoring/secrets/telegram_bot_token   (the BotFather token)
+#   monitoring/secrets/telegram_chat_id     (the target chat/group id; rendered
+#                                            into __CHAT_ID__ by the overlay's
+#                                            alertmanager entrypoint)
+#
+# The critical route (severity=critical, e.g. ConservationBroken) is split out so
+# it pages with a tight 30m repeat, while warnings batch on the default route.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: telegram
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Money-invariant breaks page immediately and re-page every 30m until resolved.
+    - matchers:
+        - severity = "critical"
+      receiver: telegram-critical
+      group_wait: 0s
+      repeat_interval: 30m
+      continue: false
+
+receivers:
+  - name: telegram
+    telegram_configs:
+      - bot_token_file: /etc/alertmanager/secrets/telegram_bot_token
+        chat_id: __CHAT_ID__
+        parse_mode: HTML
+        send_resolved: true
+        message: |-
+          <b>{{ .Status | toUpper }}</b> {{ .CommonLabels.alertname }}
+          {{ range .Alerts }}{{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+
+  - name: telegram-critical
+    telegram_configs:
+      - bot_token_file: /etc/alertmanager/secrets/telegram_bot_token
+        chat_id: __CHAT_ID__
+        parse_mode: HTML
+        send_resolved: true
+        message: |-
+          🚨 <b>CRITICAL — {{ .CommonLabels.alertname }}</b> ({{ .Status | toUpper }})
+          {{ range .Alerts }}{{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+
+inhibit_rules:
+  # When the backend is down (up=0), conservation can't be evaluated — suppress
+  # the conservation alerts so the page says "backend down", not "ledger broke".
+  - source_matchers:
+      - alertname = "BackendDown"
+    target_matchers:
+      - alertname =~ "Conservation.*"
+    equal: ['service']

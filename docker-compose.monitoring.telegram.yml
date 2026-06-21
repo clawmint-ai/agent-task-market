@@ -1,0 +1,43 @@
+# OPTIONAL Telegram delivery overlay for the monitoring stack (CLAWMIN-49).
+#
+# clawmint's deployment delivers alerts to Telegram. Compose this overlay ON TOP
+# of docker-compose.monitoring.yml to swap the channel-agnostic default
+# alertmanager config for the Telegram one. Without it, alertmanager runs the
+# no-op default (boots fine, delivers nowhere):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.monitoring.yml \
+#                  -f docker-compose.monitoring.telegram.yml up -d
+#
+# Requires the two secret files on the box (see monitoring/secrets/README.md):
+#   monitoring/secrets/telegram_bot_token
+#   monitoring/secrets/telegram_chat_id   (chmod 644 — container runs as nobody)
+
+services:
+  alertmanager:
+    # v0.27.0's telegram_config has no chat_id_file (added post-0.27, PR #4909), so
+    # the bot TOKEN is read from a file (bot_token_file) but the chat_id must be an
+    # inline int. Render it from the secret file into a writable copy at start, then
+    # exec the real binary — mirrors the prometheus init step. The chat id is a
+    # destination, not a secret; the file just keeps the operator UX to "drop two
+    # files". Fails loudly if the chat-id file is missing/empty/unreadable.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        CIDFILE=/etc/alertmanager/secrets/telegram_chat_id
+        if [ ! -r "$$CIDFILE" ]; then echo "FATAL: $$CIDFILE not readable by the container (it runs as nobody — chmod 644 the secret files, not 600)"; exit 1; fi
+        CID="$$(tr -d '[:space:]' < "$$CIDFILE")"
+        if [ -z "$$CID" ]; then echo "FATAL: $$CIDFILE is empty"; exit 1; fi
+        sed "s/__CHAT_ID__/$$CID/g" /etc/alertmanager/alertmanager.telegram.yml > /tmp/alertmanager.yml
+        exec /bin/alertmanager \
+          --config.file=/tmp/alertmanager.yml \
+          --storage.path=/alertmanager
+    # `command` from the base service is ignored once entrypoint is a shell that
+    # exec's alertmanager itself, but reset it to avoid the base flags being
+    # appended as stray args to /bin/sh.
+    command: []
+    volumes:
+      - ./monitoring/alertmanager.telegram.yml:/etc/alertmanager/alertmanager.telegram.yml:ro
+      - ./monitoring/secrets:/etc/alertmanager/secrets:ro
+      - alertmanager_data:/alertmanager
