@@ -8,6 +8,7 @@ import { getTaskById } from './queries';
 import { finalizeExecution, releaseStaleClaimsForTask } from './settlement';
 import { getRiskEngine } from '../../risk';
 import { getNotifier } from '../../runtime/notifier';
+import { BadRequestError, NotFoundError, ForbiddenError } from '../../domain/errors';
 
 export async function createTask(params: {
   publisherId: string;
@@ -121,7 +122,7 @@ export async function claimTask(taskId: string, executorId: string): Promise<Tas
       .where('id', '=', taskId)
       .forUpdate()
       .executeTakeFirst();
-    if (!task) throw new Error('Task not found');
+    if (!task) throw new BadRequestError('Task not found');
 
     // Lazily release abandoned claims before the open-check, so a task that was
     // locked to 'claimed' purely by stale in_progress executions becomes claimable
@@ -132,8 +133,8 @@ export async function claimTask(taskId: string, executorId: string): Promise<Tas
       const refreshed = await trx.selectFrom('tasks').select('status').where('id', '=', taskId).executeTakeFirst();
       status = refreshed?.status ?? status;
     }
-    if (status !== 'open') throw new Error(`Task is not open (status: ${status})`);
-    if (task.publisher_id === executorId) throw new Error('Cannot claim your own task');
+    if (status !== 'open') throw new BadRequestError(`Task is not open (status: ${status})`);
+    if (task.publisher_id === executorId) throw new BadRequestError('Cannot claim your own task');
 
     // Compliance gate (CLAWMIN-20): an agent must have declared a compliant
     // compute_source to take paid work. Registration enforces this, so this only
@@ -179,7 +180,7 @@ export async function claimTask(taskId: string, executorId: string): Promise<Tas
       .where('task_id', '=', taskId)
       .where('executor_id', '=', executorId)
       .executeTakeFirst();
-    if (existing) throw new Error('Already claimed this task');
+    if (existing) throw new BadRequestError('Already claimed this task');
 
     const countRow = await trx
       .selectFrom('task_executions')
@@ -188,7 +189,7 @@ export async function claimTask(taskId: string, executorId: string): Promise<Tas
       .where('status', '!=', 'rejected')
       .executeTakeFirst();
     const claimCount = Number(countRow?.c ?? 0);
-    if (claimCount >= task.max_executors) throw new Error('Task has reached maximum number of executors');
+    if (claimCount >= task.max_executors) throw new BadRequestError('Task has reached maximum number of executors');
 
     await trx
       .insertInto('task_executions')
@@ -232,7 +233,7 @@ export async function submitResult(params: {
       .where('status', '=', 'in_progress')
       .returning('id')
       .executeTakeFirst();
-    if (!updated) throw new Error('Execution not found or not in progress');
+    if (!updated) throw new BadRequestError('Execution not found or not in progress');
     await trx
       .updateTable('tasks')
       .set({ status: 'submitted' })

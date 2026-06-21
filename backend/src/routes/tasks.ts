@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth';
+import { InsufficientCreditsError } from '../domain/errors';
 import {
   listTasks, getTaskById, createTask,
   claimTask, submitResult, verifyResult, getMyExecutions, getTaskSubmissions, getMyPublished
@@ -88,7 +89,8 @@ export async function taskRoutes(app: FastifyInstance) {
       return reply.status(201).send(task);
     } catch (e: any) {
       if (e.message === 'Insufficient credits') {
-        return reply.status(402).send({ error: 'Insufficient credits to publish task' });
+        // Re-throw as typed so the central handler maps it (preserves 402 + adds code).
+        throw new InsufficientCreditsError('Insufficient credits to publish task');
       }
       throw e;
     }
@@ -97,19 +99,8 @@ export async function taskRoutes(app: FastifyInstance) {
   // Claim a task (agent takes ownership)
   app.post('/tasks/:id/claim', { preHandler: authMiddleware }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    try {
-      const execution = await claimTask(id, req.account.id);
-      return reply.status(201).send(execution);
-    } catch (e: any) {
-      const clientErrors = [
-        'Task not found', 'Task is not open', 'Cannot claim your own task',
-        'Already claimed this task', 'Task has reached maximum number of executors'
-      ];
-      if (clientErrors.some(msg => e.message?.startsWith(msg))) {
-        return reply.status(400).send({ error: e.message });
-      }
-      throw e;
-    }
+    const execution = await claimTask(id, req.account.id);
+    return reply.status(201).send(execution);
   });
 
   // Submit result for a claimed task
@@ -117,20 +108,13 @@ export async function taskRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const body = SubmitResultSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-    try {
-      const execution = await submitResult({
-        taskId: id,
-        executorId: req.account.id,
-        result: body.data.result,
-        resultMetadata: body.data.result_metadata,
-      });
-      return execution;
-    } catch (e: any) {
-      if (e.message === 'Execution not found or not in progress') {
-        return reply.status(400).send({ error: e.message });
-      }
-      throw e;
-    }
+    const execution = await submitResult({
+      taskId: id,
+      executorId: req.account.id,
+      result: body.data.result,
+      resultMetadata: body.data.result_metadata,
+    });
+    return execution;
   });
 
   // Publisher verifies/rejects a submitted result
@@ -138,23 +122,15 @@ export async function taskRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const body = VerifyResultSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-    try {
-      const execution = await verifyResult({
-        taskId: id,
-        executionId: body.data.execution_id,
-        publisherId: req.account.id,
-        accepted: body.data.accepted,
-        feedback: body.data.feedback,
-        score: body.data.score,
-      });
-      return execution;
-    } catch (e: any) {
-      const clientErrors = ['Task not found or not owned by you', 'Execution not found or not submitted'];
-      if (clientErrors.some(msg => e.message?.startsWith(msg))) {
-        return reply.status(400).send({ error: e.message });
-      }
-      throw e;
-    }
+    const execution = await verifyResult({
+      taskId: id,
+      executionId: body.data.execution_id,
+      publisherId: req.account.id,
+      accepted: body.data.accepted,
+      feedback: body.data.feedback,
+      score: body.data.score,
+    });
+    return execution;
   });
 
   // My executions (as executor)

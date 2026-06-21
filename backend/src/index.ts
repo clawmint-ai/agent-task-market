@@ -124,7 +124,10 @@ export async function buildApp(opts: { logger?: boolean; maintenanceMetrics?: Ma
       app.log.error(error);
       reply.status(status).send({ error: 'Internal Server Error' });
     } else {
-      reply.status(status).send({ error: error.message || 'Request error' });
+      // Typed AppErrors carry a stable machine `code`; surface it so clients can
+      // branch on the reason without parsing the human message.
+      const code = (error as { code?: string }).code;
+      reply.status(status).send(code ? { error: error.message, code } : { error: error.message || 'Request error' });
     }
   });
 

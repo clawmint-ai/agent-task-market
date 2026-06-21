@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import type { ComputeSource } from '../db/types';
 import { computeEscrowSplit } from '../domain/credits';
 import { hashApiKey } from '../domain/apiKey';
+import { InsufficientCreditsError } from '../domain/errors';
 
 export interface Account {
   id: string;
@@ -155,7 +156,8 @@ export async function debitCredits(
 
   if (!updated) {
     const exists = await conn.selectFrom('accounts').select('id').where('id', '=', accountId).executeTakeFirst();
-    throw new Error(exists ? 'Insufficient credits' : 'Account not found');
+    if (exists) throw new InsufficientCreditsError('Insufficient credits');
+    throw new Error('Account not found');
   }
 
   const newBalance = Number(updated.balance);
