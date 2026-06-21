@@ -8,7 +8,7 @@ import { getTaskById } from './queries';
 import { finalizeExecution, releaseStaleClaimsForTask } from './settlement';
 import { getRiskEngine } from '../../risk';
 import { getNotifier } from '../../runtime/notifier';
-import { BadRequestError, NotFoundError, ForbiddenError } from '../../domain/errors';
+import { BadRequestError } from '../../domain/errors';
 
 export async function createTask(params: {
   publisherId: string;
