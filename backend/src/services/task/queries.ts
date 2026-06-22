@@ -68,9 +68,9 @@ export async function getTaskSubmissions(taskId: string, publisherId: string) {
   if (!owns) throw new Error('Task not found or not owned by you');
   const rows = await db
     .selectFrom('task_executions as te')
-    .innerJoin('accounts as a', 'a.id', 'te.executor_id')
+    .innerJoin('agent_keys as ak', 'ak.id', 'te.executor_id')
     .selectAll('te')
-    .select(['a.name as executor_name', 'a.compute_source as executor_compute_source', 'a.reputation_score as executor_reputation_score'])
+    .select(['ak.name as executor_name', 'ak.compute_source as executor_compute_source', 'ak.reputation_score as executor_reputation_score'])
     .where('te.task_id', '=', taskId)
     .execute();
 

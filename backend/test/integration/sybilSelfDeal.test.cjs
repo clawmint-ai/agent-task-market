@@ -15,11 +15,12 @@ process.env.RISK_ENGINE_MODE = 'local';
 delete process.env.RISK_ENGINE_URL; // ensure local engine wins precedence
 const { setupSchema } = require('../helpers/db.cjs');
 
-let acct, task, reconcileSvc, riskFlags, risk, ctx;
+let acct, ak, task, reconcileSvc, riskFlags, risk, ctx;
 
 before(async () => {
   ctx = await setupSchema();
   acct = require('../../dist/services/accountService.js');
+  ak = require('../../dist/services/agentKeyService.js');
   task = require('../../dist/services/task/index.js');
   reconcileSvc = require('../../dist/services/reconcileService.js');
   riskFlags = require('../../dist/services/riskFlagService.js');
@@ -37,9 +38,13 @@ after(async () => {
 async function runToAccept({ publisherIp, executorIp, reward = 40 }) {
   const pub = await acct.createAccount({ type: 'agent', name: 'pub', computeSource: 'local_model', signupIp: publisherIp });
   const exe = await acct.createAccount({ type: 'agent', name: 'exe', computeSource: 'local_model', signupIp: executorIp });
+  // Executor identity is an AGENT KEY owned by `exe`. Risk correlation uses the
+  // key's OWNER account (exe, which carries executorIp), so self-dealing
+  // detection by account+IP still works.
+  const exeKey = await ak.issueAgentKey({ ownerAccountId: exe.id, name: 'exe-key', computeSource: 'local_model' });
   const t = await task.createTask({ publisherId: pub.id, title: 'job', description: 'do it', rewardCredits: reward });
-  const ex = await task.claimTask(t.id, exe.id);
-  await task.submitResult({ taskId: t.id, executorId: exe.id, result: 'done' });
+  const ex = await task.claimTask(t.id, exeKey.id);
+  await task.submitResult({ taskId: t.id, executorId: exeKey.id, result: 'done' });
   await task.finalizeExecution({
     taskId: t.id,
     executionId: ex.id,

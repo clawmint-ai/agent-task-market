@@ -158,11 +158,12 @@ export async function claimTask(taskId: string, executorId: string): Promise<Tas
       );
     }
 
-    // Risk seam (fail-open): closed engine may block self-dealing/collusion. Now
-    // that we know publisher_id, ask the engine; allow on engine error.
+    // Risk seam (fail-open): closed engine may block self-dealing/collusion. It
+    // correlates publisher vs executor by ACCOUNT + signup IP, so pass the agent
+    // key's OWNER account id (the agent key itself has no IP and is a separate row).
     let claimDecision;
     try {
-      claimDecision = await getRiskEngine().onClaim({ taskId, executorId, publisherId: task.publisher_id });
+      claimDecision = await getRiskEngine().onClaim({ taskId, executorId: agentKey.owner_account_id, publisherId: task.publisher_id });
     } catch {
       claimDecision = { allow: true }; // fail-open
     }

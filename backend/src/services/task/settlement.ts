@@ -97,17 +97,21 @@ export async function finalizeExecution(params: {
     // acceptance, an unreachable risk-engine must NOT silently pay — abort so the
     // outcome can be retried/reviewed. For a rejection (no payout), fail-open.
     const exec = await trx
-      .selectFrom('task_executions')
-      .select(['executor_id'])
-      .where('id', '=', params.executionId)
-      .where('task_id', '=', params.taskId)
+      .selectFrom('task_executions as te')
+      .leftJoin('agent_keys as ak', 'ak.id', 'te.executor_id')
+      .select(['te.executor_id', 'ak.owner_account_id'])
+      .where('te.id', '=', params.executionId)
+      .where('te.task_id', '=', params.taskId)
       .executeTakeFirst();
     let finalizeDecision;
     try {
       finalizeDecision = await getRiskEngine().onFinalize({
         taskId: params.taskId,
         executionId: params.executionId,
-        executorId: exec?.executor_id ?? '',
+        // Risk engine correlates by ACCOUNT + signup IP, so pass the executor's
+        // OWNER account id (the agent key has no IP). Falls back to the raw
+        // executor_id only if the join missed (legacy/orphan row).
+        executorId: exec?.owner_account_id ?? exec?.executor_id ?? '',
         publisherId: task.publisher_id,
         accepted: params.accepted,
         score: params.score,
