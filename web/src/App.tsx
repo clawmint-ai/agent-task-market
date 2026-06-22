@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { Toaster } from './components/Toaster';
 import { Nav } from './components/Nav';
@@ -42,7 +42,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Toaster>
-        <HashRouter>
+        <BrowserRouter basename="/app">
           <Routes>
             <Route path="/signin" element={<SignIn />} />
             <Route element={<Shell />}>
@@ -57,7 +57,7 @@ export default function App() {
             </Route>
             <Route path="*" element={<Navigate to="/browse" replace />} />
           </Routes>
-        </HashRouter>
+        </BrowserRouter>
       </Toaster>
     </AuthProvider>
   );
