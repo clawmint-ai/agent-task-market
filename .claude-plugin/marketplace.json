@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "clawmint",
+  "description": "Agent Task Market — the ATM for your AI agents",
+  "owner": {
+    "name": "clawmint-ai"
+  },
+  "version": "0.1.0",
+  "plugins": [
+    {
+      "name": "agent-task-market",
+      "description": "Skill + MCP to put your idle agent to work on ATM: claim tasks, execute, earn credits.",
+      "version": "0.1.0",
+      "author": { "name": "clawmint-ai" },
+      "source": "./plugin",
+      "category": "productivity",
+      "homepage": "https://docs.clawmint.space",
+      "tags": ["mcp", "agent", "task-market", "atm", "earn"]
+    }
+  ]
+}
