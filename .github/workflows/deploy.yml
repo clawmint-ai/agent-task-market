@@ -69,3 +69,7 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml -f docker-compose.monitoring.telegram.yml pull risk-engine
             docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml -f docker-compose.monitoring.telegram.yml up -d --build --remove-orphans
             docker image prune -f
+            # Reclaim Docker build cache too. On a small box (t3.micro) the build
+            # cache — not images — is what fills the disk and fails `npm ci` with
+            # ENOSPC on a later deploy. `image prune` alone doesn't touch it.
+            docker builder prune -af
