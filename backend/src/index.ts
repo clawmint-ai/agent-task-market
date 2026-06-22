@@ -2,6 +2,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import * as path from 'path';
+import * as fs from 'fs';
 import { runMigrations, closeDb } from './db/pool';
 import { accountRoutes } from './routes/accounts';
 import { taskRoutes } from './routes/tasks';
@@ -111,6 +112,19 @@ export async function buildApp(opts: { logger?: boolean; maintenanceMetrics?: Ma
   await app.register(fastifyStatic, {
     root: path.join(__dirname, '..', 'public'),
     prefix: '/',
+  });
+
+  // SPA deep-link fallback: a hard GET of /app/* (e.g. /app/wallet) must return
+  // the console SPA shell so client-side routing can resolve it. The landing (/)
+  // and assets are served by @fastify/static above; API/health/metrics are real
+  // routes. Everything else under /app falls back to app.html.
+  app.setNotFoundHandler((req, reply) => {
+    if (req.method === 'GET' && req.url.startsWith('/app')) {
+      return reply
+        .type('text/html')
+        .send(fs.readFileSync(path.join(__dirname, '..', 'public', 'app.html')));
+    }
+    return reply.status(404).send({ error: 'Not found' });
   });
 
   // Health check
