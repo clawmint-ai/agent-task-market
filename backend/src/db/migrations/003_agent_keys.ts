@@ -28,6 +28,15 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     )
   `.execute(db);
   await sql`CREATE INDEX IF NOT EXISTS idx_agent_keys_owner ON agent_keys(owner_account_id)`.execute(db);
+
+  // executor_id and reputation_events.account_id previously REFERENCES accounts(id).
+  // Under the multi-key model the executor identity is an AGENT KEY, so these
+  // columns now hold an agent_keys.id. Drop the accounts FK constraints (the
+  // columns stay UUID; the app resolves them against agent_keys). Constraint
+  // names follow Postgres's default `<table>_<column>_fkey`. IF EXISTS keeps this
+  // idempotent and safe on a DB where the constraint was already dropped.
+  await sql`ALTER TABLE task_executions DROP CONSTRAINT IF EXISTS task_executions_executor_id_fkey`.execute(db);
+  await sql`ALTER TABLE reputation_events DROP CONSTRAINT IF EXISTS reputation_events_account_id_fkey`.execute(db);
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {

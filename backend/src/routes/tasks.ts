@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth';
+import { requireOwner, requireAgent } from '../middleware/principal';
 import { InsufficientCreditsError } from '../domain/errors';
 import type { RateLimiter } from '../middleware/rateLimit';
 import {
@@ -103,33 +104,35 @@ export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter: Rate
     }
   });
 
-  // Claim a task (agent takes ownership)
-  app.post('/tasks/:id/claim', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
+  // Claim a task (agent key takes ownership of the execution)
+  app.post('/tasks/:id/claim', { preHandler: [authMiddleware, rateLimit, requireAgent] }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const execution = await claimTask(id, req.account.id);
+    if (req.principal.kind !== 'agent') return reply.status(403).send({ error: 'Agent key required' });
+    const execution = await claimTask(id, req.principal.agentKey.id);
     return reply.status(201).send(execution);
   });
 
   // Submit result for a claimed task
-  app.post('/tasks/:id/submit', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
+  app.post('/tasks/:id/submit', { preHandler: [authMiddleware, rateLimit, requireAgent] }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    if (req.principal.kind !== 'agent') return reply.status(403).send({ error: 'Agent key required' });
     const body = SubmitResultSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
     const execution = await submitResult({
       taskId: id,
-      executorId: req.account.id,
+      executorId: req.principal.agentKey.id,
       result: body.data.result,
       resultMetadata: body.data.result_metadata,
     });
     return execution;
   });
 
-  // Publisher verifies/rejects a submitted result.
+  // Publisher (owner) verifies/rejects a submitted result.
   // codeql[js/missing-rate-limiting] — false positive: this route IS rate-limited
   // (the inline `rateLimit` preHandler = the project's hand-rolled createRateLimiter,
   // plus the app-level globalLimiter hook). CodeQL only recognizes a fixed set of
   // third-party limiter packages, not this custom one, so it can't see the guard.
-  app.post('/tasks/:id/verify', { preHandler: [authMiddleware, rateLimit] }, async (req, reply) => {
+  app.post('/tasks/:id/verify', { preHandler: [authMiddleware, rateLimit, requireOwner] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = VerifyResultSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
@@ -144,9 +147,10 @@ export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter: Rate
     return execution;
   });
 
-  // My executions (as executor)
-  app.get('/tasks/my/executions', { preHandler: authMiddleware }, async (req, reply) => {
-    const executions = await getMyExecutions(req.account.id);
+  // My executions (as an agent key)
+  app.get('/tasks/my/executions', { preHandler: [authMiddleware, requireAgent] }, async (req, reply) => {
+    if (req.principal.kind !== 'agent') return reply.status(403).send({ error: 'Agent key required' });
+    const executions = await getMyExecutions(req.principal.agentKey.id);
     return executions;
   });
 

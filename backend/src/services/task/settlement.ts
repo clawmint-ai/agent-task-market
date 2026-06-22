@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import db, { withTransaction } from '../../db/pool';
 import type { Database } from '../../db/types';
 import { creditCredits } from '../accountService';
-import { applyReputation } from '../reputationService';
+import { applyAgentKeyReputation } from '../agentKeyService';
 import { insertRiskFlag } from '../riskFlagService';
 import { decideFinalize, decideReclaim, decideStaleRelease, decideRiskHold } from '../../domain/settlement';
 import { TaskExecution, parseExecution } from './mappers';
@@ -179,9 +179,20 @@ export async function finalizeExecution(params: {
     if (!updated) throw new BadRequestError('Execution not found or not submitted');
 
     if (action.kind === 'pay_winner') {
-      // Pay the single winner as EARNED (redeemable) — real work done, regardless
-      // of how the publisher funded escrow.
-      await creditCredits(trx, updated.executor_id, task.reward_credits, 'task_reward', {
+      // The executor identity is an AGENT KEY (task_executions.executor_id holds an
+      // agent_keys.id under the multi-key model). Money goes to the key's OWNER
+      // account; reputation + task count go to the AGENT KEY.
+      const ownerRow = await trx
+        .selectFrom('agent_keys')
+        .select('owner_account_id')
+        .where('id', '=', updated.executor_id)
+        .executeTakeFirst();
+      if (!ownerRow) throw new Error('Agent key not found for execution payout');
+      const ownerAccountId = ownerRow.owner_account_id;
+
+      // Pay the single winner's OWNER as EARNED (redeemable) — real work done,
+      // regardless of how the publisher funded escrow.
+      await creditCredits(trx, ownerAccountId, task.reward_credits, 'task_reward', {
         refId: task.id,
         description: `Reward for completing task: ${task.title}`,
         creditClass: action.rewardClass,
@@ -198,9 +209,9 @@ export async function finalizeExecution(params: {
       let frozenForReview = false;
       if (hold.review) {
         if (hold.freeze) {
-          // PAY then FREEZE: reward is credited to 'earned' (conservation holds)
-          // but moved out of spendable into frozen_earned_balance, pending review.
-          // The freeze is a delta=0 move within 'earned', atomic with the payout.
+          // PAY then FREEZE on the OWNER account: reward is credited to 'earned'
+          // (conservation holds) but moved out of spendable into
+          // frozen_earned_balance, pending review. delta=0 move within 'earned'.
           const frz = await trx
             .updateTable('accounts')
             .set({
@@ -208,7 +219,7 @@ export async function finalizeExecution(params: {
               frozen_earned_balance: sql<number>`frozen_earned_balance + ${task.reward_credits}`,
               updated_at: sql`now()`,
             } as Record<string, unknown>)
-            .where('id', '=', updated.executor_id)
+            .where('id', '=', ownerAccountId)
             .where(sql<boolean>`earned_balance >= ${task.reward_credits}`)
             .returning(['earned_balance'])
             .executeTakeFirst();
@@ -217,7 +228,7 @@ export async function finalizeExecution(params: {
             .insertInto('credit_ledger')
             .values({
               id: randomUUID(),
-              account_id: updated.executor_id,
+              account_id: ownerAccountId,
               delta: 0,
               balance_after: Number(frz.earned_balance),
               credit_class: 'earned',
@@ -230,9 +241,10 @@ export async function finalizeExecution(params: {
         }
         // Audit row either way. amount=0 for a review-only (sampled) flag so its
         // release is a pure status change with no ledger movement; amount=reward
-        // for a freeze so releaseRiskFlag unfreezes exactly what was held.
+        // for a freeze so releaseRiskFlag unfreezes exactly what was held. Keyed
+        // to the OWNER account (where the money sits).
         await insertRiskFlag(trx, {
-          accountId: updated.executor_id,
+          accountId: ownerAccountId,
           kind: (finalizeDecision.flags || [])[0] || 'review',
           refId: task.id,
           amount: hold.freeze ? task.reward_credits : 0,
@@ -240,17 +252,16 @@ export async function finalizeExecution(params: {
             flags: finalizeDecision.flags || [],
             reason: finalizeDecision.reason,
             executionId: params.executionId,
+            agentKeyId: updated.executor_id,
             publisherId: task.publisher_id,
             frozen: hold.freeze,
           },
         });
       }
-      await trx
-        .updateTable('accounts')
-        .set((eb) => ({ total_tasks_completed: eb('total_tasks_completed', '+', 1) }))
-        .where('id', '=', updated.executor_id)
-        .execute();
-      await applyReputation(trx, updated.executor_id, params.score ?? 8, 'task_accepted', updated.id);
+      // Reputation + completed-task count belong to the AGENT KEY (its independent
+      // execution identity). applyAgentKeyReputation also increments the key's
+      // total_tasks_completed on an accepted outcome.
+      await applyAgentKeyReputation(trx, updated.executor_id, params.score ?? 8, 'task_accepted', updated.id);
       await trx
         .updateTable('tasks')
         .set({ status: 'completed', completed_at: new Date() })
@@ -269,7 +280,7 @@ export async function finalizeExecution(params: {
         .where('id', '!=', updated.id)
         .where('status', 'in', ['in_progress', 'submitted'])
         .execute();
-      // Winner is always paid as EARNED (redeemable) — see creditCredits call above.
+      // Winner's owner is always paid as EARNED (redeemable) — see creditCredits above.
       settled = {
         event: frozenForReview ? 'pay_winner_held' : 'pay_winner',
         gift: 0,
@@ -279,8 +290,8 @@ export async function finalizeExecution(params: {
       return;
     }
 
-    // Rejection paths.
-    await applyReputation(trx, updated.executor_id, 0, 'task_rejected', updated.id);
+    // Rejection paths. Reputation penalty goes to the AGENT KEY.
+    await applyAgentKeyReputation(trx, updated.executor_id, 0, 'task_rejected', updated.id);
     if (action.kind === 'reject_refund') {
       // Refund the EXACT gift/earned split that was escrowed (anti-laundering).
       await refundEscrowSplit(trx, task.publisher_id, task.id, task.title, { gift: action.gift, earned: action.earned }, 'rejected');

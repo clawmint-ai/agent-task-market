@@ -83,3 +83,49 @@ export async function bumpAgentKeyReputation(keyId: string, newScore: number): P
     .where('id', '=', keyId)
     .execute();
 }
+
+/**
+ * Apply a verified outcome to an AGENT KEY's reputation (mirrors
+ * reputationService.applyReputation, but the execution identity is the agent key,
+ * not the owner account). Writes the agent_keys.reputation_score and a
+ * reputation_events row (its account_id column now holds the agent key id — the
+ * accounts FK was dropped in migration 003). On an accepted outcome it also
+ * increments the agent key's total_tasks_completed. Runs inside the caller's trx.
+ */
+export async function applyAgentKeyReputation(
+  conn: import('kysely').Transaction<import('../db/types').Database>,
+  agentKeyId: string,
+  outcomeScore: number,
+  reason: 'task_accepted' | 'task_rejected' | 'task_expired',
+  refId?: string,
+): Promise<number> {
+  const { sql } = await import('kysely');
+  const { nextReputation } = await import('../domain/reputation');
+  const row = await conn
+    .selectFrom('agent_keys')
+    .select('reputation_score')
+    .where('id', '=', agentKeyId)
+    .executeTakeFirst();
+  if (!row) throw new Error('Agent key not found');
+  const { scoreAfter, delta } = nextReputation(row.reputation_score, outcomeScore);
+  await conn
+    .updateTable('agent_keys')
+    .set({
+      reputation_score: scoreAfter,
+      ...(reason === 'task_accepted' ? { total_tasks_completed: sql`total_tasks_completed + 1` } : {}),
+    })
+    .where('id', '=', agentKeyId)
+    .execute();
+  await conn
+    .insertInto('reputation_events')
+    .values({
+      id: randomUUID(),
+      account_id: agentKeyId, // FK dropped in 003; holds the agent key id now
+      delta,
+      score_after: scoreAfter,
+      reason,
+      ref_id: refId ?? null,
+    })
+    .execute();
+  return scoreAfter;
+}
