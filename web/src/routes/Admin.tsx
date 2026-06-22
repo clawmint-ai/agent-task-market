@@ -24,46 +24,73 @@ export function Admin() {
     catch (e) { toast(adminErr(e), 'err'); }
   }
   async function act(id: string, action: 'release' | 'confirm') {
-    try { await request('POST', `/admin/risk-flags/${id}/${action}`, { headers: hdr() });
-      toast(`Flag ${action}ed`); loadFlags(); }
-    catch (e) { toast(adminErr(e), 'err'); }
+    try {
+      await request('POST', `/admin/risk-flags/${id}/${action}`, { headers: hdr() });
+      toast(`Flag ${action}ed`); loadFlags();
+    } catch (e) { toast(adminErr(e), 'err'); }
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-5 max-w-3xl">
       <h1 className="text-h1">Admin</h1>
+
+      {/* Token input */}
       <Card>
-        <h2 className="text-h2 mb-1">Admin token</h2>
-        <p className="text-sm text-ink-500 mb-3">Required for operator actions. Stored only in this tab.</p>
-        <input className={inputCls} value={token} onChange={(e) => setToken(e.target.value)} placeholder="ADMIN_TOKEN" />
+        <h2 className="text-sm font-semibold text-ink-800 mb-0.5">Admin token</h2>
+        <p className="text-xs text-ink-400 mb-3">Required for operator actions. Stored only in this tab.</p>
+        <input
+          className={`${inputCls} max-w-sm font-mono text-xs`}
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="ADMIN_TOKEN"
+          type="password"
+        />
       </Card>
+
+      {/* Reconcile */}
       <Card>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-h2">Ledger reconcile</h2>
+          <div>
+            <h2 className="text-sm font-semibold text-ink-800">Ledger reconcile</h2>
+            <p className="text-xs text-ink-400 mt-0.5">Check for balance drift across all accounts.</p>
+          </div>
           <Button variant="ghost" onClick={runReconcile} disabled={!token}>Run check</Button>
         </div>
         {reconcile != null && (
-          <pre className="bg-ink-50 border border-ink-200 rounded-lg p-3 text-xs overflow-x-auto">{JSON.stringify(reconcile, null, 2)}</pre>
+          <pre className="bg-ink-50 border border-ink-100 rounded-md p-3 text-xs font-mono overflow-x-auto leading-relaxed">
+            {JSON.stringify(reconcile, null, 2)}
+          </pre>
         )}
       </Card>
-      <Card>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-h2">Risk flags</h2>
+
+      {/* Risk flags */}
+      <Card className="p-0">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-ink-100">
+          <div>
+            <h2 className="text-sm font-semibold text-ink-800">Risk flags</h2>
+            <p className="text-xs text-ink-400 mt-0.5">Frozen credits pending operator decision.</p>
+          </div>
           <Button variant="ghost" onClick={loadFlags} disabled={!token}>Load</Button>
         </div>
-        {flags && (flags.length ? (
-          <div className="space-y-2">
-            {flags.map((f) => (
-              <div key={f.id} className="flex items-center justify-between border border-ink-200 rounded-lg p-3">
-                <span className="text-sm"><Badge>{f.kind}</Badge> <span className="tabular">{f.amount}</span> <span className="text-ink-400">{f.account_id}</span></span>
-                <span className="flex gap-2">
-                  <Button onClick={() => act(f.id, 'release')}>Release</Button>
-                  <Button variant="danger" onClick={() => act(f.id, 'confirm')}>Confirm</Button>
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : <p className="text-sm text-ink-400">No open flags.</p>)}
+        {flags && (
+          flags.length ? (
+            <div className="divide-y divide-ink-100">
+              {flags.map((f) => (
+                <div key={f.id} className="flex items-center gap-3 px-5 py-3.5">
+                  <Badge tone="warn">{f.kind}</Badge>
+                  <span className="tabular text-xs font-semibold text-ink-900">{f.amount}</span>
+                  <span className="text-xs text-ink-400 flex-1 truncate font-mono">{f.account_id}</span>
+                  <div className="flex gap-2 shrink-0">
+                    <Button variant="ghost" className="text-xs px-2.5 py-1" onClick={() => act(f.id, 'release')}>Release</Button>
+                    <Button variant="danger" className="text-xs px-2.5 py-1" onClick={() => act(f.id, 'confirm')}>Confirm</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-ink-400 px-5 py-6 text-center">No open flags.</p>
+          )
+        )}
       </Card>
     </div>
   );

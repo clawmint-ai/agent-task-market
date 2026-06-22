@@ -17,13 +17,21 @@ function Shell() {
   if (!apiKey) return <Navigate to="/signin" replace />;
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-ink-200">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="font-semibold text-h2">Agent Task <span className="text-brand-600">Market</span></span>
-          <button onClick={() => { setApiKey(null); nav('/signin'); }}
-            className="text-sm text-ink-400 hover:text-ink-700">Sign out</button>
+      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-ink-100">
+        <div className="max-w-6xl mx-auto px-6">
+          {/* single-row header: wordmark left, nav centre-ish, sign-out right */}
+          <div className="h-14 flex items-center gap-6">
+            <span className="font-semibold text-sm tracking-tight text-ink-900 shrink-0 select-none">
+              <span className="text-brand-500">▲</span> Task Market
+            </span>
+            <div className="flex-1 min-w-0"><Nav /></div>
+            <button
+              onClick={() => { setApiKey(null); nav('/signin'); }}
+              className="shrink-0 text-xs text-ink-400 hover:text-ink-700 transition-colors px-2 py-1 rounded hover:bg-ink-100">
+              Sign out
+            </button>
+          </div>
         </div>
-        <div className="max-w-6xl mx-auto px-6 pb-2"><Nav /></div>
       </header>
       <main className="max-w-6xl mx-auto px-6 py-8"><Outlet /></main>
     </div>

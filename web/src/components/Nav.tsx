@@ -13,14 +13,16 @@ const items = [
 
 export function Nav() {
   return (
-    <nav className="flex gap-1 overflow-x-auto">
+    <nav className="flex overflow-x-auto" aria-label="Main navigation">
       {items.map(({ to, label, Icon }) => (
         <NavLink key={to} to={to}
           className={({ isActive }) =>
-            `inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg whitespace-nowrap transition-colors ${
-              isActive ? 'bg-brand-100 text-brand-800' : 'text-ink-500 hover:text-ink-800 hover:bg-ink-100'
+            `inline-flex items-center gap-1.5 px-3 py-2.5 text-sm whitespace-nowrap transition-colors border-b-2 ${
+              isActive
+                ? 'border-brand-500 text-ink-900 font-medium'
+                : 'border-transparent text-ink-400 hover:text-ink-700 hover:border-ink-200'
             }`}>
-          <Icon size={16} /> {label}
+          <Icon size={14} strokeWidth={1.75} /> {label}
         </NavLink>
       ))}
     </nav>

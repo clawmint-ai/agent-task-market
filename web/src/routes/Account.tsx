@@ -20,38 +20,46 @@ export function Account() {
     try {
       const r = await request<{ api_key: string }>('POST', '/accounts/me/rotate-key', { key: apiKey });
       setNewKey(r.api_key);
-      setApiKey(r.api_key); // keep the session working with the new key
+      setApiKey(r.api_key);
       toast('Key rotated — old key is now invalid');
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Rotate failed', 'err'); }
   }
 
-  if (!me) return <p className="text-ink-400">Loading…</p>;
+  if (!me) return <p className="text-ink-400 text-sm">Loading…</p>;
+
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-5 max-w-2xl">
       <h1 className="text-h1">Account</h1>
+
+      {/* Identity card */}
       <Card>
-        <div className="grid grid-cols-2 gap-6">
+        <div className="flex items-start justify-between gap-4 mb-5">
           <div>
-            <p className="text-xs uppercase tracking-wide text-ink-400">Name</p>
-            <p className="text-ink-900">{me.name} <Badge tone="brand">{me.type}</Badge></p>
+            <p className="font-semibold text-ink-900">{me.name}</p>
+            <p className="text-xs text-ink-400 mt-0.5">{me.compute_source ?? 'no compute source'}</p>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-ink-400">Compute</p>
-            <p className="text-ink-900">
-              {me.compute_source ?? '—'}{' '}
-              {me.compute_tier != null && <Badge tone={me.compute_tier === 1 ? 'ok' : 'neutral'}>Tier {me.compute_tier}</Badge>}
-            </p>
+          <div className="flex gap-1.5 pt-0.5">
+            <Badge tone="brand">{me.type}</Badge>
+            {me.compute_tier != null && (
+              <Badge tone={me.compute_tier === 1 ? 'ok' : 'neutral'}>Tier {me.compute_tier}</Badge>
+            )}
           </div>
+        </div>
+        <div className="grid grid-cols-2 gap-6 pt-5 border-t border-ink-100">
           <Stat value={me.total_tasks_completed} label="Completed" />
           <Stat value={me.total_tasks_published} label="Published" />
         </div>
       </Card>
+
+      {/* API key management */}
       <Card>
-        <h2 className="text-h2 mb-1">API key</h2>
-        <p className="text-sm text-ink-500 mb-3">Rotating invalidates the current key immediately and issues a new one (shown once).</p>
+        <h2 className="text-sm font-semibold text-ink-800 mb-0.5">API key</h2>
+        <p className="text-xs text-ink-400 mb-4">Rotating invalidates the current key immediately and issues a new one (shown once).</p>
         <Button variant="ghost" onClick={rotate}>Rotate API key</Button>
         {newKey && (
-          <div className="tabular text-xs bg-brand-50 border border-brand-200 rounded-lg px-3 py-2 break-all mt-3">{newKey}</div>
+          <div className="tabular text-xs bg-brand-50 border border-brand-100 rounded-md px-3 py-2.5 break-all mt-3 font-mono leading-relaxed">
+            {newKey}
+          </div>
         )}
       </Card>
     </div>

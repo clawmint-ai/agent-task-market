@@ -18,43 +18,77 @@ export function Published() {
     try {
       const data = await request<Execution[]>('GET', `/tasks/${taskId}/submissions`, { key: apiKey });
       setSubs((s) => ({ ...s, [taskId]: data }));
-    }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Load failed', 'err'); }
-  }
-  async function verify(taskId: string, executionId: string, accepted: boolean) {
-    try { await request('POST', `/tasks/${taskId}/verify`, { key: apiKey, body: { execution_id: executionId, accepted } });
-      toast(accepted ? 'Accepted — paid' : 'Rejected — refunded'); loadSubs(taskId); load(); }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Verify failed', 'err'); }
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Load failed', 'err'); }
   }
 
-  if (!tasks.length) return <p className="text-ink-400 py-12 text-center">You haven't published any tasks yet.</p>;
+  async function verify(taskId: string, executionId: string, accepted: boolean) {
+    try {
+      await request('POST', `/tasks/${taskId}/verify`, { key: apiKey, body: { execution_id: executionId, accepted } });
+      toast(accepted ? 'Accepted — paid' : 'Rejected — refunded');
+      loadSubs(taskId); load();
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Verify failed', 'err'); }
+  }
+
+  if (!tasks.length) return (
+    <div className="border border-dashed border-ink-200 rounded-xl py-16 text-center">
+      <p className="text-ink-400 text-sm">No published tasks yet.</p>
+      <p className="text-ink-300 text-xs mt-1">Publish a task to see it here.</p>
+    </div>
+  );
+
   return (
-    <div className="space-y-3">
-      <h1 className="text-h1 mb-2">My tasks</h1>
-      {tasks.map((t) => (
-        <Card key={t.id}>
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <h2 className="text-h2">{t.title}</h2>
-            <span className="tabular text-brand-700 font-medium">{t.reward_credits}</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5"><Badge tone="brand">{t.type}</Badge><Badge>{t.status}</Badge></div>
-          {t.status === 'submitted' && (
-            <Button variant="ghost" className="mt-3" onClick={() => loadSubs(t.id)}>Review submissions</Button>
-          )}
-          {subs[t.id]?.map((s) => (
-            <div key={s.id} className="border border-ink-200 rounded-lg p-4 mt-3 bg-ink-50">
-              <p className="text-xs text-ink-500 mb-2">by {s.executor_name ?? s.executor_id} · <Badge>{s.status}</Badge></p>
-              <pre className="bg-white border border-ink-200 rounded-lg p-3 text-xs overflow-x-auto whitespace-pre-wrap mb-3">{s.result}</pre>
-              {s.status === 'submitted' && (
-                <div className="flex gap-2">
-                  <Button onClick={() => verify(t.id, s.id, true)}>Accept</Button>
-                  <Button variant="danger" onClick={() => verify(t.id, s.id, false)}>Reject</Button>
-                </div>
+    <div>
+      <h1 className="text-h1 mb-5">My tasks</h1>
+      <Card className="p-0 divide-y divide-ink-100">
+        {tasks.map((t) => (
+          <div key={t.id}>
+            {/* Task row */}
+            <div className="flex items-center gap-3 px-5 py-4">
+              <span className="font-medium text-ink-900 text-sm flex-1 truncate">{t.title}</span>
+              <span className="tabular text-xs font-semibold text-ink-900 shrink-0">
+                {t.reward_credits}<span className="font-normal text-ink-400 ml-0.5">cr</span>
+              </span>
+              <div className="flex gap-1.5 shrink-0">
+                <Badge tone="brand">{t.type}</Badge>
+                <Badge tone={t.status === 'open' ? 'ok' : 'neutral'}>{t.status}</Badge>
+              </div>
+              {t.status === 'submitted' && (
+                <Button variant="ghost" className="text-xs px-2.5 py-1 shrink-0" onClick={() => loadSubs(t.id)}>
+                  Review
+                </Button>
               )}
             </div>
-          ))}
-        </Card>
-      ))}
+
+            {/* Submissions panel */}
+            {subs[t.id] && (
+              <div className="bg-ink-50 border-t border-ink-100 px-5 py-4 space-y-3">
+                {subs[t.id].length === 0 && (
+                  <p className="text-xs text-ink-400">No submissions yet.</p>
+                )}
+                {subs[t.id].map((s) => (
+                  <div key={s.id} className="bg-white border border-ink-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs text-ink-500">by {s.executor_name ?? s.executor_id}</span>
+                      <Badge tone={s.status === 'accepted' ? 'ok' : s.status === 'rejected' ? 'warn' : 'neutral'}>
+                        {s.status}
+                      </Badge>
+                    </div>
+                    <pre className="bg-ink-50 border border-ink-100 rounded-md p-3 text-xs overflow-x-auto whitespace-pre-wrap font-mono mb-3 max-h-40">
+                      {s.result}
+                    </pre>
+                    {s.status === 'submitted' && (
+                      <div className="flex gap-2">
+                        <Button onClick={() => verify(t.id, s.id, true)}>Accept</Button>
+                        <Button variant="danger" onClick={() => verify(t.id, s.id, false)}>Reject</Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </Card>
     </div>
   );
 }
