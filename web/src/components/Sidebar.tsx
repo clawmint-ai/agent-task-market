@@ -25,28 +25,52 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const nav = useNavigate();
   return (
     <div className="flex flex-col h-full">
-      <a href="/" className="flex items-center gap-2 px-4 h-16 shrink-0 font-semibold text-ink-900">
+      {/* Wordmark */}
+      <a
+        href="/"
+        className="flex items-center gap-2 px-4 h-14 shrink-0 font-semibold text-sm text-ink-900 tracking-tight hover:text-ink-900 transition-colors"
+      >
         <span className="text-brand-500">▲</span> Task Market
       </a>
-      <nav className="flex-1 overflow-y-auto px-2 space-y-5 py-2">
+
+      {/* Nav groups */}
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
         {navGroups.map((g) => (
           <div key={g.label}>
-            <p className="px-3 mb-1 text-[11px] uppercase tracking-widest text-ink-400">{g.label}</p>
-            {g.items.map(({ to, label, Icon }) => (
-              <NavLink key={to} to={to} onClick={onNavigate}
-                className={({ isActive }) =>
-                  `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
-                    isActive ? 'bg-brand-50 text-brand-700 font-medium' : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
-                  }`}>
-                <Icon size={16} /> {label}
-              </NavLink>
-            ))}
+            <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-300 select-none">
+              {g.label}
+            </p>
+            <ul className="space-y-0.5">
+              {g.items.map(({ to, label, Icon }) => (
+                <li key={to}>
+                  <NavLink
+                    to={to}
+                    onClick={onNavigate}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors relative ${
+                        isActive
+                          ? 'bg-ink-100 text-ink-900 font-medium before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-4 before:w-0.5 before:rounded-full before:bg-brand-400'
+                          : 'text-ink-500 hover:bg-ink-50 hover:text-ink-800'
+                      }`
+                    }
+                  >
+                    <Icon size={15} strokeWidth={1.75} />
+                    {label}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
           </div>
         ))}
       </nav>
-      <button onClick={() => { setApiKey(null); nav('/signin'); }}
-        className="flex items-center gap-2 px-4 h-12 shrink-0 border-t border-ink-100 text-sm text-ink-500 hover:text-ink-900">
-        <LogOut size={16} /> Sign out
+
+      {/* Sign out */}
+      <button
+        onClick={() => { setApiKey(null); nav('/signin'); }}
+        className="flex items-center gap-2.5 px-4 py-3.5 shrink-0 border-t border-ink-100 text-sm text-ink-400 hover:text-ink-700 transition-colors"
+      >
+        <LogOut size={15} strokeWidth={1.75} />
+        Sign out
       </button>
     </div>
   );
