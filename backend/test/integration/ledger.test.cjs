@@ -6,13 +6,14 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { setupSchema } = require('../helpers/db.cjs');
 
-let acct, task, ctx;
+let acct, task, ak, ctx;
 
 before(async () => {
   ctx = await setupSchema();
   // Require services AFTER setupSchema points DATABASE_URL at the test schema.
   acct = require('../../dist/services/accountService.js');
   task = require('../../dist/services/task/index.js');
+  ak = require('../../dist/services/agentKeyService.js');
 });
 
 after(async () => {
@@ -29,6 +30,9 @@ test('winner-take-all: 3 agents race 1 task, only winner paid, credits conserved
   const a1 = await acct.createAccount({ type: 'agent', name: 'a1', computeSource: 'local_model' });
   const a2 = await acct.createAccount({ type: 'agent', name: 'a2', computeSource: 'local_model' });
   const a3 = await acct.createAccount({ type: 'agent', name: 'a3', computeSource: 'local_model' });
+  const ak1 = await ak.issueAgentKey({ ownerAccountId: a1.id, name: 'a1-key', computeSource: 'local_model' });
+  const ak2 = await ak.issueAgentKey({ ownerAccountId: a2.id, name: 'a2-key', computeSource: 'local_model' });
+  const ak3 = await ak.issueAgentKey({ ownerAccountId: a3.id, name: 'a3-key', computeSource: 'local_model' });
   const start = (await bal(pub.id)) + (await bal(a1.id)) + (await bal(a2.id)) + (await bal(a3.id));
 
   const t = await task.createTask({
@@ -37,12 +41,12 @@ test('winner-take-all: 3 agents race 1 task, only winner paid, credits conserved
   });
   assert.equal(await bal(pub.id), 700, 'publisher escrowed 300');
 
-  const e1 = await task.claimTask(t.id, a1.id);
-  const e2 = await task.claimTask(t.id, a2.id);
-  const e3 = await task.claimTask(t.id, a3.id);
-  await task.submitResult({ taskId: t.id, executorId: a1.id, result: 'r1' });
-  await task.submitResult({ taskId: t.id, executorId: a2.id, result: 'r2' });
-  await task.submitResult({ taskId: t.id, executorId: a3.id, result: 'r3' });
+  const e1 = await task.claimTask(t.id, ak1.id);
+  const e2 = await task.claimTask(t.id, ak2.id);
+  const e3 = await task.claimTask(t.id, ak3.id);
+  await task.submitResult({ taskId: t.id, executorId: ak1.id, result: 'r1' });
+  await task.submitResult({ taskId: t.id, executorId: ak2.id, result: 'r2' });
+  await task.submitResult({ taskId: t.id, executorId: ak3.id, result: 'r3' });
 
   await task.verifyResult({ taskId: t.id, executionId: e1.id, publisherId: pub.id, accepted: true, score: 9 });
   assert.equal(await bal(a1.id), 1300, 'winner paid once');
@@ -72,12 +76,13 @@ test('claim race (§1.2): concurrent claims on max_executors=1 admit exactly one
   const pub = await acct.createAccount({ type: 'human', name: 'pub2' });
   const agents = [];
   for (let i = 0; i < 8; i++) agents.push(await acct.createAccount({ type: 'agent', name: 'r' + i, computeSource: 'local_model' }));
+  const agentKeys = await Promise.all(agents.map((a, i) => ak.issueAgentKey({ ownerAccountId: a.id, name: `r${i}-key`, computeSource: 'local_model' })));
   const t = await task.createTask({
     publisherId: pub.id, title: 'single-slot', description: 'one winner',
     rewardCredits: 50, maxExecutors: 1, verification: { mode: 'manual' },
   });
 
-  const results = await Promise.allSettled(agents.map((a) => task.claimTask(t.id, a.id)));
+  const results = await Promise.allSettled(agentKeys.map((k) => task.claimTask(t.id, k.id)));
   const ok = results.filter((r) => r.status === 'fulfilled').length;
   assert.equal(ok, 1, 'exactly one claim succeeds under concurrency');
 });
@@ -108,13 +113,14 @@ test('credential gate (§1.5): agent registration requires compute_source + atte
   // Claim-time gate: an agent left at 'unspecified' (legacy/seed path that
   // bypasses the register route) cannot take paid work.
   const stray = await acct.createAccount({ type: 'agent', name: 'stray' });
+  const strayKey = await ak.issueAgentKey({ ownerAccountId: stray.id, name: 'stray-key' }); // no computeSource → 'unspecified'
   const pub = await acct.createAccount({ type: 'human', name: 'gatepub' });
   const gt = await task.createTask({
     publisherId: pub.id, title: 'gate', description: 'x',
     rewardCredits: 10, maxExecutors: 1, verification: { mode: 'manual' },
   });
   await assert.rejects(
-    () => task.claimTask(gt.id, stray.id),
+    () => task.claimTask(gt.id, strayKey.id),
     /compute source not declared/i,
     'unspecified agent refused at claim time'
   );
@@ -125,6 +131,7 @@ test('credential gate (§1.5): agent registration requires compute_source + atte
 test('gift credits are non-redeemable but spendable on publishing; refund preserves class', async () => {
   const pub = await acct.createAccount({ type: 'human', name: 'giftpub' });
   const a1 = await acct.createAccount({ type: 'agent', name: 'gw', computeSource: 'local_model' });
+  const ak1 = await ak.issueAgentKey({ ownerAccountId: a1.id, name: 'gw-key', computeSource: 'local_model' });
   const before = await acct.getAccountById(pub.id);
   assert.equal(before.gift_balance, 1000, 'signup bonus is gift');
   assert.equal(before.earned_balance, 0, 'no earned at signup');
@@ -136,8 +143,8 @@ test('gift credits are non-redeemable but spendable on publishing; refund preser
   const afterPublish = await acct.getAccountById(pub.id);
   assert.equal(afterPublish.gift_balance, 800, 'escrow spent from gift');
 
-  const e = await task.claimTask(t.id, a1.id);
-  await task.submitResult({ taskId: t.id, executorId: a1.id, result: 'bad' });
+  const e = await task.claimTask(t.id, ak1.id);
+  await task.submitResult({ taskId: t.id, executorId: ak1.id, result: 'bad' });
   await task.verifyResult({ taskId: t.id, executionId: e.id, publisherId: pub.id, accepted: false });
 
   const afterRefund = await acct.getAccountById(pub.id);
@@ -197,12 +204,13 @@ test('deadline reclaim (§3.7): expired unclaimed task refunds escrow + fails', 
 test('deadline reclaim: does NOT touch a task with an active executor', async () => {
   const pub = await acct.createAccount({ type: 'human', name: 'dlpub2' });
   const ag = await acct.createAccount({ type: 'agent', name: 'dlagent', computeSource: 'local_model' });
+  const agKey = await ak.issueAgentKey({ ownerAccountId: ag.id, name: 'dlagent-key', computeSource: 'local_model' });
   const past = new Date(Date.now() - 60_000).toISOString();
   const t = await task.createTask({
     publisherId: pub.id, title: 'expired-but-claimed', description: 'in flight',
     rewardCredits: 100, maxExecutors: 1, deadline: past, verification: { mode: 'manual' },
   });
-  await task.claimTask(t.id, ag.id); // active execution exists
+  await task.claimTask(t.id, agKey.id); // active execution exists
 
   await task.reclaimExpiredTasks(new Date());
   const still = await task.getTaskById(t.id);

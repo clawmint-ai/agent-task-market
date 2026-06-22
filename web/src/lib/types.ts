@@ -72,3 +72,13 @@ export interface RiskFlag {
   amount: number;
   detail?: Record<string, unknown>;
 }
+
+export interface AgentKey {
+  id: string;
+  name: string;
+  compute_source: string;
+  reputation_score: number;
+  total_tasks_completed: number;
+  is_active: boolean;
+  created_at: string;
+}

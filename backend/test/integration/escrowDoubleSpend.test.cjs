@@ -17,12 +17,13 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { setupSchema } = require('../helpers/db.cjs');
 
-let acct, task, ctx;
+let acct, task, ak, ctx;
 
 before(async () => {
   ctx = await setupSchema();
   acct = require('../../dist/services/accountService.js');
   task = require('../../dist/services/task/index.js');
+  ak = require('../../dist/services/agentKeyService.js');
 });
 
 after(async () => {
@@ -45,6 +46,7 @@ const escrowOf = async (taskId) => {
 test('reject_refund then deadline sweep refunds escrow exactly ONCE (no minting)', async () => {
   const pub = await acct.createAccount({ type: 'human', name: 'dsp-pub' });
   const ag = await acct.createAccount({ type: 'agent', name: 'dsp-ag', computeSource: 'local_model' });
+  const agKey = await ak.issueAgentKey({ ownerAccountId: ag.id, name: 'dsp-ag-key', computeSource: 'local_model' });
   const start = await total(pub.id);
 
   // Deadline already in the past so the reclaim sweep will consider this task.
@@ -55,8 +57,8 @@ test('reject_refund then deadline sweep refunds escrow exactly ONCE (no minting)
   });
   assert.equal(await total(pub.id), start - 200, 'escrow debited once on publish');
 
-  const e = await task.claimTask(t.id, ag.id);
-  await task.submitResult({ taskId: t.id, executorId: ag.id, result: 'bad' });
+  const e = await task.claimTask(t.id, agKey.id);
+  await task.submitResult({ taskId: t.id, executorId: agKey.id, result: 'bad' });
   // Reject with no other executor in flight → reject_refund (refund #1).
   await task.verifyResult({ taskId: t.id, executionId: e.id, publisherId: pub.id, accepted: false });
 
@@ -80,14 +82,15 @@ test('reject_refund then deadline sweep refunds escrow exactly ONCE (no minting)
 test('rejected escrow cannot later be paid out as a reward (no pay-after-refund)', async () => {
   const pub = await acct.createAccount({ type: 'human', name: 'dsp-pub2' });
   const ag = await acct.createAccount({ type: 'agent', name: 'dsp-ag2', computeSource: 'local_model' });
+  const agKey = await ak.issueAgentKey({ ownerAccountId: ag.id, name: 'dsp-ag2-key', computeSource: 'local_model' });
   const start = await total(pub.id);
 
   const t = await task.createTask({
     publisherId: pub.id, title: 'no-pay-after-refund', description: 'reject, then try accept',
     rewardCredits: 120, maxExecutors: 1, verification: { mode: 'manual' },
   });
-  const e = await task.claimTask(t.id, ag.id);
-  await task.submitResult({ taskId: t.id, executorId: ag.id, result: 'bad' });
+  const e = await task.claimTask(t.id, agKey.id);
+  await task.submitResult({ taskId: t.id, executorId: agKey.id, result: 'bad' });
   await task.verifyResult({ taskId: t.id, executionId: e.id, publisherId: pub.id, accepted: false });
   assert.equal(await total(pub.id), start, 'refunded once');
 

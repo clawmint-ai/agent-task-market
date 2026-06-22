@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  Search, PlusCircle, Wrench, ClipboardList, Wallet, User, ShieldCheck, LogOut,
+  Search, PlusCircle, Wrench, ClipboardList, Wallet, User, ShieldCheck, LogOut, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
@@ -13,6 +13,7 @@ const navGroups: { label: string; items: { to: string; label: string; Icon: type
   ]},
   { label: 'Account', items: [
     { to: '/wallet', label: 'Wallet', Icon: Wallet },
+    { to: '/agent-keys', label: 'Agent keys', Icon: KeyRound },
     { to: '/account', label: 'Account', Icon: User },
   ]},
   { label: 'Ops', items: [

@@ -134,41 +134,43 @@ export async function claimTask(taskId: string, executorId: string): Promise<Tas
       status = refreshed?.status ?? status;
     }
     if (status !== 'open') throw new BadRequestError(`Task is not open (status: ${status})`);
-    if (task.publisher_id === executorId) throw new BadRequestError('Cannot claim your own task');
+
+    // The claimant is an AGENT KEY (executorId = agent_keys.id). Resolve it for the
+    // compliance gate (its own compute_source) and the self-claim check (against its
+    // OWNER — an owner can't have its agent claim its own published task).
+    const agentKey = await trx
+      .selectFrom('agent_keys')
+      .select(['owner_account_id', 'compute_source', 'reputation_score'])
+      .where('id', '=', executorId)
+      .where('is_active', '=', true)
+      .executeTakeFirst();
+    if (!agentKey) throw new BadRequestError('Agent key not found');
+    if (task.publisher_id === agentKey.owner_account_id) throw new BadRequestError('Cannot claim your own task');
 
     // Compliance gate (CLAWMIN-20): an agent must have declared a compliant
-    // compute_source to take paid work. Registration enforces this, so this only
-    // bites legacy/seed rows left at 'unspecified' — it's the enforcement point
-    // that also covers the MCP path (MCP just forwards to this same claim).
-    const claimant = await trx
-      .selectFrom('accounts')
-      .select(['type', 'compute_source'])
-      .where('id', '=', executorId)
-      .executeTakeFirst();
-    if (claimant?.type === 'agent' && claimant.compute_source === 'unspecified') {
+    // compute_source to take paid work. Registration/key-issue enforces this, so
+    // this only bites legacy/seed rows left at 'unspecified' — it's the enforcement
+    // point that also covers the MCP path (MCP just forwards to this same claim).
+    if (agentKey.compute_source === 'unspecified') {
       throw new Error(
-        'Compute source not declared: re-register with a compliant compute_source ' +
+        'Compute source not declared: re-issue the agent key with a compliant compute_source ' +
           '(local_model, payg_api_key, platform_credit, token_plan_whitelist) before claiming tasks.'
       );
     }
 
-    // Risk seam (fail-open): closed engine may block self-dealing/collusion. Now
-    // that we know publisher_id, ask the engine; allow on engine error.
+    // Risk seam (fail-open): closed engine may block self-dealing/collusion. It
+    // correlates publisher vs executor by ACCOUNT + signup IP, so pass the agent
+    // key's OWNER account id (the agent key itself has no IP and is a separate row).
     let claimDecision;
     try {
-      claimDecision = await getRiskEngine().onClaim({ taskId, executorId, publisherId: task.publisher_id });
+      claimDecision = await getRiskEngine().onClaim({ taskId, executorId: agentKey.owner_account_id, publisherId: task.publisher_id });
     } catch {
       claimDecision = { allow: true }; // fail-open
     }
     if (!claimDecision.allow) throw new Error(claimDecision.reason || 'Claim rejected by risk policy');
 
     if (task.min_reputation > 0) {
-      const acct = await trx
-        .selectFrom('accounts')
-        .select('reputation_score')
-        .where('id', '=', executorId)
-        .executeTakeFirst();
-      const rep = acct?.reputation_score ?? 0;
+      const rep = agentKey.reputation_score ?? 0;
       if (rep < task.min_reputation) {
         throw new Error(`Reputation too low: need ${task.min_reputation}, you have ${rep}`);
       }

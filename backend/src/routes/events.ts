@@ -1,6 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { authMiddleware } from '../middleware/auth';
-import { getAccountByApiKey } from '../services/accountService';
+import { authMiddleware, resolvePrincipal } from '../middleware/auth';
 import { getNotifier, TaskEvent } from '../runtime/notifier';
 
 /**
@@ -15,14 +14,16 @@ import { getNotifier, TaskEvent } from '../runtime/notifier';
  * Auth: normally the Bearer header (authMiddleware). But the browser EventSource
  * API cannot set headers, so this route ALSO accepts the key via `?api_key=` —
  * a fallback scoped to this read-only stream only (the shared authMiddleware is
- * left header-only so no other endpoint widens its auth surface).
+ * left header-only so no other endpoint widens its auth surface). Either an owner
+ * or an agent key may open the stream; resolvePrincipal handles both.
  */
 async function eventsAuth(req: Parameters<typeof authMiddleware>[0], reply: Parameters<typeof authMiddleware>[1]) {
   const queryKey = (req.query as Record<string, string>).api_key;
   if (queryKey && !req.headers.authorization) {
-    const account = await getAccountByApiKey(queryKey);
-    if (!account) return reply.status(401).send({ error: 'Invalid API key' });
-    req.account = account;
+    const principal = await resolvePrincipal(queryKey);
+    if (!principal) return reply.status(401).send({ error: 'Invalid API key' });
+    req.principal = principal;
+    req.account = principal.kind === 'owner' ? principal.account : principal.ownerAccount;
     return;
   }
   return authMiddleware(req, reply);

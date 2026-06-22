@@ -19,7 +19,7 @@ const assert = require('node:assert');
 const http = require('node:http');
 const { setupSchema } = require('../helpers/db.cjs');
 
-let server, baseUrl, ctx, acct, task, risk;
+let server, baseUrl, ctx, acct, task, risk, ak;
 // Per-hook canned behavior: { mode: 'allow'|'deny'|'500'|'hang'|'badbody' }.
 let behavior = {};
 
@@ -49,6 +49,7 @@ before(async () => {
   ctx = await setupSchema();
   acct = require('../../dist/services/accountService.js');
   task = require('../../dist/services/task/index.js');
+  ak = require('../../dist/services/agentKeyService.js');
   risk = require('../../dist/risk/index.js');
   risk.resetRiskEngine(); // drop any memoized Noop; re-read RISK_ENGINE_URL
 });
@@ -68,8 +69,12 @@ beforeEach(() => {
 // Helpers ─────────────────────────────────────────────────────────────────
 let n = 0;
 const uniq = (p) => `${p}-${Date.now()}-${n++}`;
+// Returns { id: agentKeyId, accountId: accountId } so claimTask/submitResult
+// use id (the key) while bal() uses accountId (money pools to owner account).
 async function agent(name) {
-  return acct.createAccount({ type: 'agent', name: uniq(name), computeSource: 'local_model' });
+  const acctRow = await acct.createAccount({ type: 'agent', name: uniq(name), computeSource: 'local_model' });
+  const keyRow = await ak.issueAgentKey({ ownerAccountId: acctRow.id, name: uniq(name) + '-key', computeSource: 'local_model' });
+  return { id: keyRow.id, accountId: acctRow.id };
 }
 async function human(name) {
   return acct.createAccount({ type: 'human', name: uniq(name) });
@@ -126,14 +131,14 @@ test('finalize-accept: engine deny → settlement blocked, no payout', async () 
   const t = await task.createTask({ publisherId: pub.id, title: uniq('t'), description: 'x', rewardCredits: 50, maxExecutors: 1, verification: { mode: 'manual' } });
   const ex = await task.claimTask(t.id, ag.id);
   await task.submitResult({ taskId: t.id, executorId: ag.id, result: 'r' });
-  const before = await bal(ag.id);
+  const before = await bal(ag.accountId);
   behavior.onFinalize = 'deny';
   await assert.rejects(
     () => task.verifyResult({ taskId: t.id, executionId: ex.id, publisherId: pub.id, accepted: true, score: 9 }),
     /risk policy|held|blocked/i,
     'reachable deny on an accept must hold settlement'
   );
-  assert.equal(await bal(ag.id), before, 'executor NOT paid when settlement is held');
+  assert.equal(await bal(ag.accountId), before, 'executor NOT paid when settlement is held');
 });
 
 for (const mode of ['500', 'hang', 'badbody']) {
@@ -143,14 +148,14 @@ for (const mode of ['500', 'hang', 'badbody']) {
     const t = await task.createTask({ publisherId: pub.id, title: uniq('t'), description: 'x', rewardCredits: 50, maxExecutors: 1, verification: { mode: 'manual' } });
     const ex = await task.claimTask(t.id, ag.id);
     await task.submitResult({ taskId: t.id, executorId: ag.id, result: 'r' });
-    const before = await bal(ag.id);
+    const before = await bal(ag.accountId);
     behavior.onFinalize = mode;
     await assert.rejects(
       () => task.verifyResult({ taskId: t.id, executionId: ex.id, publisherId: pub.id, accepted: true, score: 9 }),
       /unavailable|held|fail-closed|risk/i,
       `transport failure (${mode}) on an accept must NOT silently settle`
     );
-    assert.equal(await bal(ag.id), before, `executor NOT paid on engine ${mode}`);
+    assert.equal(await bal(ag.accountId), before, `executor NOT paid on engine ${mode}`);
   });
 }
 

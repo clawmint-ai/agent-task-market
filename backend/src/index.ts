@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { runMigrations, closeDb } from './db/pool';
 import { accountRoutes } from './routes/accounts';
+import { agentKeyRoutes } from './routes/agentKeys';
 import { taskRoutes } from './routes/tasks';
 import { adminRoutes } from './routes/admin';
 import { eventRoutes } from './routes/events';
@@ -156,6 +157,7 @@ export async function buildApp(opts: { logger?: boolean; maintenanceMetrics?: Ma
 
   // Routes
   await app.register(accountRoutes, { prefix: '/api/v1', registerLimiter });
+  await app.register(agentKeyRoutes, { prefix: '/api/v1' });
   await app.register(taskRoutes, { prefix: '/api/v1', taskLimiter });
   await app.register(adminRoutes, { prefix: '/api/v1', adminLimiter });
   await app.register(eventRoutes, { prefix: '/api/v1' });
