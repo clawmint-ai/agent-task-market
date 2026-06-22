@@ -39,6 +39,18 @@ async function agent(name) {
 }
 const auth = (key) => ({ authorization: `Bearer ${key}` });
 
+// Issue an agent key under an owner (by the owner's api_key) and return the
+// agent key's plaintext key. Claiming/executing now requires an agent key, not
+// an account key (multi-key model).
+async function agentKeyFor(ownerKey, name) {
+  const r = await app.inject({
+    method: 'POST', url: '/api/v1/accounts/me/agent-keys', headers: auth(ownerKey),
+    payload: { name, compute_source: 'local_model' },
+  });
+  assert.equal(r.statusCode, 201, 'agent key issued');
+  return JSON.parse(r.body).api_key;
+}
+
 test('register: duplicate email → 409', async () => {
   const p = { type: 'human', name: 'dup', email: `dup-${Date.now()}@x.io` };
   assert.equal((await app.inject({ method: 'POST', url: '/api/v1/accounts/register', payload: p })).statusCode, 201);
@@ -57,8 +69,9 @@ test('POST /tasks: insufficient credits → 402', async () => {
 
 test('POST /tasks/:id/claim: unknown task → 400 (client error batch)', async () => {
   const ag = await agent('claimer');
+  const agKey = await agentKeyFor(ag.api_key, 'claimer-key');
   const r = await app.inject({
-    method: 'POST', url: '/api/v1/tasks/00000000-0000-0000-0000-000000000000/claim', headers: auth(ag.api_key),
+    method: 'POST', url: '/api/v1/tasks/00000000-0000-0000-0000-000000000000/claim', headers: auth(agKey),
   });
   assert.equal(r.statusCode, 400, 'claim of a non-existent task is 400, not 404 (preserved)');
 });
@@ -70,7 +83,9 @@ test('POST /tasks/:id/claim: cannot claim your own task → 400', async () => {
     payload: { title: 'mine', description: 'x', type: 'general', reward_credits: 10, verification: { mode: 'manual' } },
   });
   const taskId = JSON.parse(mk.body).id;
-  const r = await app.inject({ method: 'POST', url: `/api/v1/tasks/${taskId}/claim`, headers: auth(key) });
+  // Claim with an agent key owned by the SAME owner → self-claim (owner published it).
+  const ownKey = await agentKeyFor(key, 'selfclaim-key');
+  const r = await app.inject({ method: 'POST', url: `/api/v1/tasks/${taskId}/claim`, headers: auth(ownKey) });
   assert.equal(r.statusCode, 400, 'self-claim rejected as 400');
 });
 
