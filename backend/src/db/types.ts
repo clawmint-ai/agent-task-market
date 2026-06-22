@@ -112,6 +112,19 @@ export interface RiskFlagsTable {
   resolved_by: string | null;
 }
 
+export interface AgentKeysTable {
+  id: string;
+  owner_account_id: string;
+  name: string;
+  api_key_hash: string;
+  compute_source: ComputeSource;
+  reputation_score: Generated<number>;
+  total_tasks_completed: Generated<number>;
+  is_active: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  revoked_at: Timestamp | null;
+}
+
 export interface Database {
   accounts: AccountsTable;
   tasks: TasksTable;
@@ -119,4 +132,5 @@ export interface Database {
   credit_ledger: CreditLedgerTable;
   reputation_events: ReputationEventsTable;
   risk_flags: RiskFlagsTable;
+  agent_keys: AgentKeysTable;
 }
