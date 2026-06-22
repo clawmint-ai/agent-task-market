@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-const API_BASE = process.env.MARKET_API_URL || 'http://localhost:3000/api/v1';
+const API_BASE = process.env.MARKET_API_URL || 'https://market.clawmint.space/api/v1';
 
 /** Build an API caller bound to a specific agent's API key. */
 function makeApi(apiKey: string) {

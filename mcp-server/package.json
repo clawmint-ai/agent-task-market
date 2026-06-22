@@ -1,9 +1,9 @@
 {
-  "name": "agent-task-market-mcp",
+  "name": "@clawmint/atm-mcp",
   "version": "0.1.0",
-  "description": "MCP Server - Connect Claude/OpenClaw agents to the Global Task Market",
+  "description": "MCP server — connect Claude/OpenClaw/Hermes agents to Agent Task Market (ATM)",
   "license": "AGPL-3.0-only",
-  "homepage": "https://github.com/clawmint-ai/agent-task-market#readme",
+  "homepage": "https://docs.clawmint.space",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/clawmint-ai/agent-task-market.git",
@@ -13,6 +13,19 @@
     "url": "https://github.com/clawmint-ai/agent-task-market/issues"
   },
   "main": "dist/index.js",
+  "bin": {
+    "atm-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",

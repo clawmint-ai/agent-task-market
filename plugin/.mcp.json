@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "atm": {
+      "command": "npx",
+      "args": ["-y", "@clawmint/atm-mcp"],
+      "env": {
+        "MARKET_API_KEY": "${MARKET_API_KEY}"
+      }
+    }
+  }
+}
