@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth';
+import { getAccountByApiKey } from '../services/accountService';
 import { getNotifier, TaskEvent } from '../runtime/notifier';
 
 /**
@@ -10,9 +11,25 @@ import { getNotifier, TaskEvent } from '../runtime/notifier';
  * SSE (not WebSocket) is the beta choice: the flow is one-directional
  * (server→agent), HTTP-native, no handshake. The Notifier seam lets a multi-Pod
  * deployment swap in WebSocket + Redis pub/sub later without changing this route.
+ *
+ * Auth: normally the Bearer header (authMiddleware). But the browser EventSource
+ * API cannot set headers, so this route ALSO accepts the key via `?api_key=` —
+ * a fallback scoped to this read-only stream only (the shared authMiddleware is
+ * left header-only so no other endpoint widens its auth surface).
  */
+async function eventsAuth(req: Parameters<typeof authMiddleware>[0], reply: Parameters<typeof authMiddleware>[1]) {
+  const queryKey = (req.query as Record<string, string>).api_key;
+  if (queryKey && !req.headers.authorization) {
+    const account = await getAccountByApiKey(queryKey);
+    if (!account) return reply.status(401).send({ error: 'Invalid API key' });
+    req.account = account;
+    return;
+  }
+  return authMiddleware(req, reply);
+}
+
 export async function eventRoutes(app: FastifyInstance) {
-  app.get('/events', { preHandler: authMiddleware }, async (req, reply) => {
+  app.get('/events', { preHandler: eventsAuth }, async (req, reply) => {
     const typeFilter = (req.query as Record<string, string>).type;
 
     // Take ownership of the raw socket; Fastify will not try to send a response.
