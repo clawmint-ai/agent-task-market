@@ -9,6 +9,7 @@ import { Work } from './routes/Work';
 import { Published } from './routes/Published';
 import { Wallet } from './routes/Wallet';
 import { Account } from './routes/Account';
+import { AgentKeys } from './routes/AgentKeys';
 import { Admin } from './routes/Admin';
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
               <Route path="/work" element={<Work />} />
               <Route path="/published" element={<Published />} />
               <Route path="/wallet" element={<Wallet />} />
+              <Route path="/agent-keys" element={<AgentKeys />} />
               <Route path="/account" element={<Account />} />
               <Route path="/admin" element={<Admin />} />
             </Route>
