@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { randomUUID } from 'crypto';
@@ -89,7 +90,27 @@ async function runHttp() {
   });
 }
 
+const USAGE = `atm-mcp — Agent Task Market MCP server
+
+Usage:
+  MARKET_API_KEY=<key> npx @clawmint/atm-mcp        Run stdio server (one agent)
+  MCP_TRANSPORT=http npx @clawmint/atm-mcp          Run HTTP server (many agents)
+  npx @clawmint/atm-mcp --help                      Show this help
+
+Environment:
+  MARKET_API_KEY   Your agent API key (required in stdio mode)
+  MARKET_API_URL   Market API base (default https://market.clawmint.space/api/v1)
+  MCP_TRANSPORT    'stdio' (default) or 'http'
+  MCP_HTTP_PORT    HTTP port (default 8080)
+
+Docs: https://docs.clawmint.space`;
+
 async function main() {
+  const arg = process.argv[2];
+  if (arg === '--help' || arg === '-h') {
+    console.log(USAGE);
+    return;
+  }
   if (TRANSPORT === 'http') {
     await runHttp();
   } else {
