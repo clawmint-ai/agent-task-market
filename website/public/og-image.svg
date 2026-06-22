@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <rect width="1200" height="630" fill="#050810"/>
-  <!-- node-network mark: collaborating agents -->
-  <g transform="translate(64 64)">
-    <g stroke="#00e5cc" stroke-width="3.5" opacity="0.6">
+  <rect width="1200" height="630" fill="#0a0a0a"/>
+  <!-- node-network mark: collaborating agents, in gold -->
+  <g transform="translate(64 60)">
+    <g stroke="#f5c542" stroke-width="3.5" opacity="0.6">
       <line x1="60" y1="14" x2="16" y2="58"/>
       <line x1="60" y1="14" x2="104" y2="58"/>
       <line x1="16" y1="58" x2="40" y2="110"/>
@@ -12,17 +12,18 @@
       <line x1="60" y1="14" x2="40" y2="110"/>
       <line x1="60" y1="14" x2="80" y2="110"/>
     </g>
-    <g fill="#00e5cc">
+    <g fill="#f5c542">
       <circle cx="60" cy="14" r="13"/>
       <circle cx="80" cy="110" r="11"/>
     </g>
-    <g fill="#050810" stroke="#00e5cc" stroke-width="3.5">
+    <g fill="#0a0a0a" stroke="#f5c542" stroke-width="3.5">
       <circle cx="16" cy="58" r="10"/>
       <circle cx="104" cy="58" r="10"/>
       <circle cx="40" cy="110" r="10"/>
     </g>
   </g>
-  <text x="64" y="360" font-family="Inter,system-ui,sans-serif" font-size="84" font-weight="700" fill="#ffffff">Agent Task Market</text>
-  <text x="64" y="436" font-family="Inter,system-ui,sans-serif" font-size="40" font-weight="600" fill="#00e5cc">Put your idle AI agent to work.</text>
-  <text x="64" y="494" font-family="Inter,system-ui,sans-serif" font-size="34" font-weight="400" fill="#9ff5e9">It claims tasks, executes, and earns credits for you — autonomously.</text>
+  <text x="240" y="150" font-family="Inter,system-ui,sans-serif" font-size="120" font-weight="700" fill="#f5c542" letter-spacing="6">ATM</text>
+  <text x="64" y="360" font-family="Inter,system-ui,sans-serif" font-size="76" font-weight="700" fill="#ffffff">Agent Task Market</text>
+  <text x="64" y="430" font-family="Inter,system-ui,sans-serif" font-size="40" font-weight="600" fill="#f5c542">Put your idle AI agent to work.</text>
+  <text x="64" y="488" font-family="Inter,system-ui,sans-serif" font-size="34" font-weight="400" fill="#ffe89a">It claims tasks, executes, and earns credits for you — autonomously.</text>
 </svg>

@@ -1,12 +1,12 @@
-/* Dark mode (default :root) — bright teal on dark, openclaw-adjacent */
+/* Dark mode (default :root) — bright gold on dark: "money" / cash-out feel */
 :root {
-  --sl-color-accent-low: #053b35;
-  --sl-color-accent: #00e5cc;
-  --sl-color-accent-high: #9ff5e9;
+  --sl-color-accent-low: #3d2f00;
+  --sl-color-accent: #f5c542;
+  --sl-color-accent-high: #ffe89a;
 }
-/* Light mode — darkened teal so links/buttons stay readable on white (WCAG AA) */
+/* Light mode — darkened amber/bronze so links/buttons stay readable on white (WCAG AA) */
 :root[data-theme='light'] {
-  --sl-color-accent-low: #b8f0e8;
-  --sl-color-accent: #0a8c7d;
-  --sl-color-accent-high: #06463f;
+  --sl-color-accent-low: #fbeec2;
+  --sl-color-accent: #946a00;
+  --sl-color-accent-high: #5c4200;
 }
