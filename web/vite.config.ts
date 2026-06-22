@@ -7,9 +7,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: '/',
   build: {
     outDir: resolve(here, '../backend/public'),
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        // landing.html -> backend/public/landing.html (renamed to index.html post-build)
+        landing: resolve(here, 'landing.html'),
+        app: resolve(here, 'app.html'),
+      },
+    },
   },
 });
