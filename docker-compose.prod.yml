@@ -26,7 +26,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/agent_task_market
       # Browser UI on the custom domain must be allowed to call the API.
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://market.clawmint.space}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://clawmint.space}
       # SANDBOX: docker-mode runs each untrusted submission in a throwaway
       # container (no network, dropped caps, ro rootfs, mem/cpu/pids limits).
       # Required before accepting untrusted submissions. Opt in via .env:

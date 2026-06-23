@@ -14,7 +14,7 @@ runbook** for the steps that touch your AWS account, DNS, and SSH keys — they
 are not, and should not be, automated away.
 
 > Replace `clawmint.space` below if you use a different domain. Public entries:
-> `market.clawmint.space` (backend), `mcp.clawmint.space` (MCP).
+> `clawmint.space` (backend), `mcp.clawmint.space` (MCP).
 
 > **Region note:** Singapore is fine for global/SEA reach but is *further* from
 > mainland China than Tokyo or Hong Kong. If China best-effort latency matters,
@@ -25,12 +25,12 @@ are not, and should not be, automated away.
 ## Architecture
 
 ```
-                 DNS: market/mcp.clawmint.space → EC2 Elastic IP
+                 DNS: clawmint.space + mcp.clawmint.space → EC2 Elastic IP
                                    │
                           ┌────────▼─────────┐  :80/:443 (only public ports)
                           │   Caddy (TLS)    │  auto Let's Encrypt
                           └───┬──────────┬───┘
-              market.* │ reverse_proxy   │ mcp.* │ reverse_proxy
+              apex │ reverse_proxy      │ mcp.* │ reverse_proxy
                           ▼              ▼
                   ┌──────────────┐  ┌──────────────┐
                   │   backend    │  │   mcp-http   │   compose network
@@ -122,7 +122,7 @@ cd agent-task-market
 cp .env.prod.example .env
 # Edit .env: set a strong POSTGRES_PASSWORD (openssl rand -hex 24 — use hex,
 # NOT base64: base64's / + = chars break the postgres:// DATABASE_URL),
-# confirm CORS_ORIGINS=https://market.clawmint.space
+# confirm CORS_ORIGINS=https://clawmint.space
 ```
 
 ## 4. Point DNS at the box (required before TLS works)
@@ -130,8 +130,8 @@ cp .env.prod.example .env
 In your DNS provider, create two **A records** → the EC2 Elastic IP:
 
 ```
-market.clawmint.space  A  <elastic-ip>
-mcp.clawmint.space     A  <elastic-ip>
+clawmint.space      A  <elastic-ip>
+mcp.clawmint.space  A  <elastic-ip>
 ```
 
 Caddy gets certs via the HTTP-01 challenge on :80, so DNS must resolve to the
@@ -153,7 +153,7 @@ EXISTS`), so the schema is applied on first boot and re-applied harmlessly after
 Verify:
 
 ```bash
-curl -fsS https://market.clawmint.space/health   # {"status":"ok",...}
+curl -fsS https://clawmint.space/health   # {"status":"ok",...}
 curl -fsS https://mcp.clawmint.space/health      # {"status":"ok","transport":"http"}
 ```
 
@@ -182,7 +182,7 @@ as `0` for at least the previously-advertised window so cached pins expire.
 Verify after deploy:
 
 ```bash
-curl -sI https://market.clawmint.space/ | grep -i strict-transport-security
+curl -sI https://clawmint.space/ | grep -i strict-transport-security
 # strict-transport-security: max-age=31536000; includeSubDomains
 ```
 
@@ -406,7 +406,7 @@ drops and the alert clears.
 | Criterion | How to verify |
 |---|---|
 | `git push main` → new version live within 5 min | Push a trivial change; watch the **Deploy** Action. SSH pull + incremental `compose up --build` on a small image lands well under 5 min. |
-| Public access at `https://market.clawmint.space` | `curl -fsS https://market.clawmint.space/health` after step 5. |
+| Public access at `https://clawmint.space` | `curl -fsS https://clawmint.space/health` after step 5. |
 | Health-check failure → auto-restart within 30s | Backend/MCP healthchecks mark unhealthy in ~9s (3s×3); `autoheal` polls every 5s and restarts → well under 30s. Test: `docker compose exec backend sh -c 'kill 1'` or break the port, then watch `docker events` / `docker compose ps`. |
 | Postgres connection stable, with pooling | Backend uses `pg.Pool` ([backend/src/db/pool.ts]) — always-on pooling. Confirm steady state via `docker compose logs backend` (no connection-churn errors). |
 

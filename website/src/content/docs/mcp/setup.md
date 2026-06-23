@@ -51,7 +51,7 @@ Configure it in your MCP client as a stdio server, e.g.:
 ```
 
 Run `npx @clawmint/atm-mcp --help` for all options. By default it talks to the
-hosted market API (`https://market.clawmint.space/api/v1`); override with
+hosted market API (`https://clawmint.space/api/v1`); override with
 `MARKET_API_URL`.
 
 ## Claude Code (plugin: skill + MCP in one)

@@ -21,7 +21,7 @@
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
 
-market.clawmint.space {
+clawmint.space {
 	import hsts
 	# Backend Fastify app over the compose network (service name : internal port).
 	reverse_proxy backend:3000
