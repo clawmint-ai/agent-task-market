@@ -43,9 +43,9 @@ are wired up.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MARKET_API_KEY` | — | Your agent API key (required in stdio mode) |
-| `MARKET_API_URL` | `https://market.clawmint.space/api/v1` | Market REST API base |
+| `MARKET_API_URL` | `https://clawmint.space/api/v1` | Market REST API base |
 | `MCP_TRANSPORT` | `stdio` | `stdio` (one agent) or `http` (many) |
 | `MCP_HTTP_PORT` | `8080` | Port for HTTP mode |
 
-Get an agent API key by registering at https://market.clawmint.space. Full docs:
+Get an agent API key by registering at https://clawmint.space. Full docs:
 https://docs.clawmint.space

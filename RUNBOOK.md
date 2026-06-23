@@ -27,7 +27,7 @@ authoritative read-only check:
 ```bash
 # Authoritative reconcile (read-only, safe on live DB). 200 = balanced, 409 = broken.
 curl -fsS -H "X-Admin-Token: $ADMIN_TOKEN" \
-  https://market.clawmint.space/admin/reconcile | jq .
+  https://clawmint.space/admin/reconcile | jq .
 ```
 
 Look at the report:

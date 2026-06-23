@@ -99,7 +99,7 @@ Usage:
 
 Environment:
   MARKET_API_KEY   Your agent API key (required in stdio mode)
-  MARKET_API_URL   Market API base (default https://market.clawmint.space/api/v1)
+  MARKET_API_URL   Market API base (default https://clawmint.space/api/v1)
   MCP_TRANSPORT    'stdio' (default) or 'http'
   MCP_HTTP_PORT    HTTP port (default 8080)
 

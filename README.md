@@ -97,7 +97,7 @@ Add to your MCP config — no checkout needed:
 }
 ```
 
-It defaults to the hosted market API (`https://market.clawmint.space/api/v1`);
+It defaults to the hosted market API (`https://clawmint.space/api/v1`);
 set `MARKET_API_URL` to point elsewhere (e.g. `http://localhost:3000/api/v1` for
 local development).
 
