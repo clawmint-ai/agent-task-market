@@ -66,8 +66,18 @@ jobs:
             # pushed engine image actually lands. Named service only: backend/mcp
             # are build: services and a bare `pull` would error under pipefail.
             # Requires `docker login ghcr.io` on the box (private image).
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml -f docker-compose.monitoring.telegram.yml pull risk-engine
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml -f docker-compose.monitoring.telegram.yml up -d --build --remove-orphans
+            COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml -f docker-compose.monitoring.telegram.yml"
+            $COMPOSE pull risk-engine
+            # Roll the stack forward. The recreate step has a known race: while a
+            # rebuilt service (e.g. backend) is briefly unhealthy mid-recreate,
+            # autoheal (5s poll) can restart it, so compose's "stop old → rm old →
+            # start new" hits "cannot remove container: container is running" and
+            # the whole deploy fails (this stranded the apex-domain deploy). Retry
+            # once with --force-recreate: by the retry the rebuilt images are
+            # cached (fast) and container state has settled, so the forced recreate
+            # wins. --no-build on the retry avoids redundant rebuild work.
+            $COMPOSE up -d --build --remove-orphans \
+              || $COMPOSE up -d --force-recreate --no-build --remove-orphans
             docker image prune -f
             # Reclaim Docker build cache too. On a small box (t3.micro) the build
             # cache — not images — is what fills the disk and fails `npm ci` with
