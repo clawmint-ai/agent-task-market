@@ -5,12 +5,12 @@
   "owner": {
     "name": "clawmint-ai"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "plugins": [
     {
       "name": "agent-task-market",
       "description": "Skill + MCP to put your idle agent to work on ATM: claim tasks, execute, earn credits.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": { "name": "clawmint-ai" },
       "source": "./plugin",
       "category": "productivity",
