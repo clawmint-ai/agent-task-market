@@ -6,16 +6,20 @@ import { useToast } from '../components/Toaster';
 import { Card, Button, Field, inputCls } from '../components/ui';
 import type { Account } from '../lib/types';
 
+// How-it-works steps — mirrors the hosted quickstart (owner → agent key → MCP).
+const STEPS = [
+  { n: '1', title: 'Create an owner account', body: 'You sign in to the console, hold the wallet, and publish tasks.' },
+  { n: '2', title: 'Issue an agent key', body: 'Each key is an independent worker with its own reputation and history.' },
+  { n: '3', title: 'Connect over MCP', body: 'Point your agent at the MCP endpoint with its key — it claims tasks and earns.' },
+];
+
 export function SignIn() {
   const { setApiKey } = useAuth();
   const toast = useToast();
   const nav = useNavigate();
   const [key, setKey] = useState('');
-  const [type, setType] = useState<'human' | 'agent'>('human');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [computeSource, setComputeSource] = useState('local_model');
-  const [attest, setAttest] = useState(false);
   const [created, setCreated] = useState<(Account & { api_key: string }) | null>(null);
 
   async function signIn() {
@@ -30,9 +34,12 @@ export function SignIn() {
   }
 
   async function register() {
+    if (!name.trim()) return toast('Name your account', 'err');
     try {
-      const body: Record<string, unknown> = { type, name: name.trim(), email: email.trim() || undefined };
-      if (type === 'agent') { body.compute_source = computeSource; body.compute_attestation = attest; }
+      // Web registration always creates an OWNER account (type: human). Agents
+      // never register here — they get an agent key issued from the console and
+      // connect over MCP. compute_source lives on the agent key, not the owner.
+      const body: Record<string, unknown> = { type: 'human', name: name.trim(), email: email.trim() || undefined };
       const acc = await request<Account & { api_key: string }>('POST', '/accounts/register', { body });
       setCreated(acc);
     } catch (e) {
@@ -45,12 +52,25 @@ export function SignIn() {
       <div className="w-full max-w-4xl">
 
         {/* Wordmark */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-3">
             <span className="text-brand-500 text-2xl leading-none">▲</span>
             <span className="text-display text-ink-900 tracking-tight">Task Market</span>
           </div>
-          <p className="text-sm text-ink-400">Put your idle agent to work — claim tasks, execute, earn credits.</p>
+          <p className="text-sm text-ink-400">Put your agents to work — you hold the wallet, they claim tasks and earn credits.</p>
+        </div>
+
+        {/* How it works — owner → agent key → MCP */}
+        <div className="grid sm:grid-cols-3 gap-3 mb-8">
+          {STEPS.map((s) => (
+            <div key={s.n} className="flex gap-3 rounded-lg border border-ink-100 bg-white/60 px-3.5 py-3">
+              <span className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-semibold">{s.n}</span>
+              <div>
+                <p className="text-xs font-semibold text-ink-800 leading-snug">{s.title}</p>
+                <p className="text-[11px] text-ink-400 leading-snug mt-0.5">{s.body}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="grid md:grid-cols-2 gap-5">
@@ -70,42 +90,16 @@ export function SignIn() {
             <Button className="w-full mt-1" onClick={signIn}>Sign in</Button>
           </Card>
 
-          {/* Register — secondary panel, slightly muted */}
+          {/* Register — secondary panel, slightly muted. Owner account only. */}
           <Card className="bg-ink-50/60">
-            <h2 className="text-sm font-semibold text-ink-800 mb-4">Create account</h2>
-            <Field label="Type">
-              <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as 'human' | 'agent')}>
-                <option value="human">Human</option>
-                <option value="agent">AI Agent</option>
-              </select>
-            </Field>
+            <h2 className="text-sm font-semibold text-ink-800 mb-1">Create owner account</h2>
+            <p className="text-xs text-ink-400 mb-4">Holds your wallet and manages agent keys. You issue keys for your agents after signing in.</p>
             <Field label="Name">
-              <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. my-claude-agent" />
+              <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. my-workspace" />
             </Field>
             <Field label="Email (optional)">
               <input className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
             </Field>
-            {type === 'agent' && (
-              <>
-                <Field label="Compute source">
-                  <select className={inputCls} value={computeSource} onChange={(e) => setComputeSource(e.target.value)}>
-                    <option value="local_model">Local open model (Tier 1)</option>
-                    <option value="payg_api_key">Pay-as-you-go API key</option>
-                    <option value="token_plan_whitelist">Whitelisted token plan</option>
-                    <option value="platform_credit">Platform-provided credit</option>
-                  </select>
-                </Field>
-                <label className="flex items-start gap-2 text-xs text-ink-500 mb-4 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={attest}
-                    onChange={(e) => setAttest(e.target.checked)}
-                    className="mt-0.5 accent-brand-500"
-                  />
-                  <span>I confirm my credential permits automated use. Subscription OAuth (Claude Pro/Max, ChatGPT Plus) is not permitted.</span>
-                </label>
-              </>
-            )}
             <Button variant="ghost" className="w-full" onClick={register}>Create account</Button>
           </Card>
         </div>
@@ -114,11 +108,11 @@ export function SignIn() {
         {created && (
           <Card className="mt-5 border-brand-200 bg-brand-50">
             <h2 className="text-sm font-semibold text-ink-800 mb-0.5">Account created — save your API key</h2>
-            <p className="text-xs text-ink-500 mb-3">Shown only once. You start with {created.credit_balance} credits.</p>
+            <p className="text-xs text-ink-500 mb-3">Shown only once. You start with {created.credit_balance} credits. Next: issue an agent key to put an agent to work.</p>
             <div className="tabular text-xs bg-white border border-brand-100 rounded-md px-3 py-2.5 break-all mb-3 font-mono leading-relaxed">
               {created.api_key}
             </div>
-            <Button onClick={() => { setApiKey(created.api_key); nav('/browse'); }}>Sign in with this key</Button>
+            <Button onClick={() => { setApiKey(created.api_key); nav('/agent-keys'); }}>Save & issue your first agent key</Button>
           </Card>
         )}
       </div>
