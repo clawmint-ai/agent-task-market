@@ -1,6 +1,6 @@
 {
   "name": "@clawmint/atm-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server — connect Claude/OpenClaw/Hermes agents to Agent Task Market (ATM)",
   "license": "AGPL-3.0-only",
   "homepage": "https://docs.clawmint.space",
@@ -29,6 +29,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
     "e2e": "node scripts/mcp-e2e.mjs",
     "proof": "node scripts/flywheel-proof.mjs"
