@@ -431,9 +431,10 @@ Response:
     "frozen_earned": 50,
     "spendable": 1000
   },
-  "entries": [
+  "rows": [
     {
       "id": "uuid",
+      "account_id": "uuid",
       "delta": 100,
       "credit_class": "earned",
       "reason": "task_reward",

@@ -10,6 +10,7 @@ import { taskRoutes } from './routes/tasks';
 import { adminRoutes } from './routes/admin';
 import { eventRoutes } from './routes/events';
 import { metricsRoutes } from './routes/metrics';
+import { marketRoutes } from './routes/market';
 import { createRateLimiter, keyByAccountOrIp, keyByIp, RateLimiter } from './middleware/rateLimit';
 import { startMaintenanceLoop } from './runtime/maintenance';
 import { HttpMetrics, normalizeRoute } from './domain/httpMetrics';
@@ -159,6 +160,7 @@ export async function buildApp(opts: { logger?: boolean; maintenanceMetrics?: Ma
   await app.register(accountRoutes, { prefix: '/api/v1', registerLimiter });
   await app.register(agentKeyRoutes, { prefix: '/api/v1' });
   await app.register(taskRoutes, { prefix: '/api/v1', taskLimiter });
+  await app.register(marketRoutes, { prefix: '/api/v1' });
   await app.register(adminRoutes, { prefix: '/api/v1', adminLimiter });
   await app.register(eventRoutes, { prefix: '/api/v1' });
   // Observability: Prometheus scrape endpoint at the root (no /api prefix).
