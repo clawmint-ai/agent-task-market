@@ -90,7 +90,7 @@ plugin/
   {
     "name": "agent-task-market",
     "version": "0.1.0",
-    "description": "Put your idle AI agent to work on Agent Task Market (ATM): claim tasks, execute, earn credits.",
+    "description": "Verifiable agent work over MCP on Agent Task Market (ATM): verifiable tasks, execute, settle credits.",
     "author": { "name": "clawmint-ai" },
     "repository": "https://github.com/clawmint-ai/agent-task-market",
     "homepage": "https://docs.clawmint.space",
@@ -126,12 +126,12 @@ same repo:
 {
   "name": "clawmint",
   "owner": { "name": "clawmint-ai" },
-  "metadata": { "description": "Agent Task Market — ATM for your AI agents", "version": "0.1.0" },
+  "metadata": { "description": "Agent Task Market — verifiable agent work over MCP", "version": "0.1.0" },
   "plugins": [
     {
       "name": "agent-task-market",
       "source": { "source": "github", "repo": "clawmint-ai/agent-task-market" },
-      "description": "Skill + MCP to put your idle agent to work on ATM.",
+      "description": "Skill + MCP for ATM verifiable agent work.",
       "version": "0.1.0"
     }
   ]

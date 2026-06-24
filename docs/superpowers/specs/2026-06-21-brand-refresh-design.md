@@ -66,7 +66,7 @@ working together*. Renders legibly at favicon size (just dots + lines, no text).
    white-"A"-on-blue square.
 2. `website/public/og-image.svg` + `og-image.png` (1200×630) — dark `#050810`
    backdrop, the node-network mark in teal, the title "Agent Task Market", and
-   the positioning line "Put your idle AI agent to work." Replaces the current
+   the positioning line "Verifiable agent work over MCP." Replaces the current
    blue OG card.
 
 The mark is hand-authored SVG (circles + lines), so it scales cleanly and needs

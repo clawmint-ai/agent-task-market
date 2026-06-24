@@ -1,8 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
-import { createAccount, getAccountById, getCreditHistory, rotateApiKey, redeemEarned } from '../services/accountService';
+import { createAccount, getAccountById, getCreditHistory, getLedgerPage, LEDGER_MAX_LIMIT, rotateApiKey, redeemEarned } from '../services/accountService';
 import { getReputationHistory } from '../services/reputationService';
 import { authMiddleware } from '../middleware/auth';
+import { requireOwner } from '../middleware/principal';
 import { RateLimiter } from '../middleware/rateLimit';
 import { getRiskEngine } from '../risk';
 import { insertRiskFlag } from '../services/riskFlagService';
@@ -171,6 +172,31 @@ export async function accountRoutes(
       gift: req.account.gift_balance,
       frozen_earned: req.account.frozen_earned_balance,
       history: await getCreditHistory(req.account.id),
+    };
+  });
+
+  // Paginated credit ledger for the owner/operator Ledger console screen.
+  const LedgerQuery = z.object({
+    limit: z.coerce.number().int().min(1).max(LEDGER_MAX_LIMIT).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+  });
+  app.get('/accounts/me/ledger', { preHandler: [authMiddleware, requireOwner] }, async (req, reply) => {
+    const q = LedgerQuery.safeParse(req.query);
+    if (!q.success) return reply.status(400).send({ error: q.error.flatten() });
+    const a = req.account;
+    const { rows, limit, offset } = await getLedgerPage(a.id, {
+      limit: q.data.limit,
+      offset: q.data.offset,
+    });
+    return {
+      balance: {
+        earned: a.earned_balance,
+        gift: a.gift_balance,
+        frozen_earned: a.frozen_earned_balance,
+        spendable: a.earned_balance + a.gift_balance,
+      },
+      rows,
+      pagination: { limit, offset },
     };
   });
 

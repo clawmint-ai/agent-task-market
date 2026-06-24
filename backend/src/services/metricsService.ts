@@ -38,3 +38,84 @@ export async function collectMetrics(checkedAt: string): Promise<MetricsSnapshot
     frozenEarnedTotal: Number(frozenRow?.s ?? 0),
   };
 }
+
+/** Owner-console overview counts + agent-identity credential summary (Slice B3). */
+export interface OwnerOverview {
+  counts: {
+    work_packages_open: number;
+    executions_in_progress: number;
+    submissions_awaiting_review: number;
+    risk_holds_open: number;
+  };
+  agent_identities: {
+    issued: number;
+    active_credentials: number;
+    revoked: number;
+  };
+}
+
+/**
+ * Aggregate the owner-console overview for one owner account (Slice B3). Counts are
+ * scoped to the owner's published tasks (review queue) and the owner's risk holds and
+ * agent keys. Online/offline status is intentionally omitted until `agent_sessions`
+ * exists (B9); identities report only issued/active/revoked credentials.
+ *
+ * Bounded query count (5 aggregates, no per-task loops). Wallet + principal are
+ * assembled by the route from the authenticated owner account.
+ */
+export async function collectOwnerOverview(ownerAccountId: string): Promise<OwnerOverview> {
+  const execOnMyTasks = (status: 'in_progress' | 'submitted') =>
+    db
+      .selectFrom('task_executions as te')
+      .innerJoin('tasks as t', 't.id', 'te.task_id')
+      .select((eb) => eb.fn.countAll<number>().as('c'))
+      .where('t.publisher_id', '=', ownerAccountId)
+      .where('te.status', '=', status)
+      .executeTakeFirst();
+
+  const [openTasks, inProgress, awaitingReview, riskHolds, keysIssued, keysActive] =
+    await Promise.all([
+      db
+        .selectFrom('tasks')
+        .select((eb) => eb.fn.countAll<number>().as('c'))
+        .where('publisher_id', '=', ownerAccountId)
+        .where('status', '=', 'open')
+        .executeTakeFirst(),
+      execOnMyTasks('in_progress'),
+      execOnMyTasks('submitted'),
+      db
+        .selectFrom('risk_flags')
+        .select((eb) => eb.fn.countAll<number>().as('c'))
+        .where('account_id', '=', ownerAccountId)
+        .where('status', '=', 'open')
+        .executeTakeFirst(),
+      db
+        .selectFrom('agent_keys')
+        .select((eb) => eb.fn.countAll<number>().as('c'))
+        .where('owner_account_id', '=', ownerAccountId)
+        .executeTakeFirst(),
+      db
+        .selectFrom('agent_keys')
+        .select((eb) => eb.fn.countAll<number>().as('c'))
+        .where('owner_account_id', '=', ownerAccountId)
+        .where('is_active', '=', true)
+        .executeTakeFirst(),
+    ]);
+
+  const issued = Number(keysIssued?.c ?? 0);
+  const active = Number(keysActive?.c ?? 0);
+
+  return {
+    counts: {
+      work_packages_open: Number(openTasks?.c ?? 0),
+      executions_in_progress: Number(inProgress?.c ?? 0),
+      submissions_awaiting_review: Number(awaitingReview?.c ?? 0),
+      risk_holds_open: Number(riskHolds?.c ?? 0),
+    },
+    agent_identities: {
+      issued,
+      active_credentials: active,
+      revoked: issued - active,
+    },
+  };
+}

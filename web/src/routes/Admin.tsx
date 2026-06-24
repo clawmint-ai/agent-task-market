@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { request, ApiError } from '../lib/api';
 import { useToast } from '../components/Toaster';
-import { Card, Button, Badge, inputCls } from '../components/ui';
+import { normalizeRiskFlagsResponse, riskFlagLabel } from '../lib/marketOps';
+import { Card, Button, Badge, Stat, inputCls } from '../components/ui';
 import type { RiskFlag } from '../lib/types';
 
 export function Admin() {
@@ -9,6 +10,7 @@ export function Admin() {
   const [token, setToken] = useState('');
   const [reconcile, setReconcile] = useState<unknown>(null);
   const [flags, setFlags] = useState<RiskFlag[] | null>(null);
+  const [selectedFlagId, setSelectedFlagId] = useState<string | null>(null);
   const hdr = () => ({ 'x-admin-token': token });
 
   function adminErr(e: unknown) {
@@ -20,7 +22,12 @@ export function Admin() {
     catch (e) { toast(adminErr(e), 'err'); }
   }
   async function loadFlags() {
-    try { setFlags(await request<RiskFlag[]>('GET', '/admin/risk-flags', { headers: hdr() })); }
+    try {
+      const data = await request<RiskFlag[] | { flags?: RiskFlag[] }>('GET', '/admin/risk-flags', { headers: hdr() });
+      const normalized = normalizeRiskFlagsResponse(data);
+      setFlags(normalized);
+      setSelectedFlagId((current) => current && normalized.some((flag) => flag.id === current) ? current : normalized[0]?.id ?? null);
+    }
     catch (e) { toast(adminErr(e), 'err'); }
   }
   async function act(id: string, action: 'release' | 'confirm') {
@@ -30,9 +37,11 @@ export function Admin() {
     } catch (e) { toast(adminErr(e), 'err'); }
   }
 
+  const selectedFlag = flags?.find((flag) => flag.id === selectedFlagId) ?? null;
+
   return (
     <div className="space-y-5 max-w-3xl">
-      <h1 className="text-h1">Admin</h1>
+      <h1 className="text-h1">Market ops</h1>
 
       {/* Token input */}
       <Card>
@@ -45,6 +54,17 @@ export function Admin() {
           placeholder="ADMIN_TOKEN"
           type="password"
         />
+      </Card>
+
+      <Card>
+        <div className="grid grid-cols-3 gap-x-6 gap-y-5">
+          <Stat value="Manual" label="Verifier health" accent />
+          <Stat value="Unavailable" label="Stale claims" />
+          <Stat value="Unavailable" label="Settlement latency" />
+        </div>
+        <p className="text-xs text-ink-400 mt-4">
+          Dedicated verifier health, stale-claim counts, and settlement latency endpoints are not exposed yet. Reconcile and risk flags remain available when admin routes are enabled.
+        </p>
       </Card>
 
       {/* Reconcile */}
@@ -63,7 +83,7 @@ export function Admin() {
         )}
       </Card>
 
-      {/* Risk flags */}
+      <div className="grid md:grid-cols-[1fr_18rem] gap-5">
       <Card className="p-0">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-ink-100">
           <div>
@@ -81,6 +101,7 @@ export function Admin() {
                   <span className="tabular text-xs font-semibold text-ink-900">{f.amount}</span>
                   <span className="text-xs text-ink-400 flex-1 truncate font-mono">{f.account_id}</span>
                   <div className="flex gap-2 shrink-0">
+                    <Button variant="ghost" className="text-xs px-2.5 py-1" onClick={() => setSelectedFlagId(f.id)}>Inspect</Button>
                     <Button variant="ghost" className="text-xs px-2.5 py-1" onClick={() => act(f.id, 'release')}>Release</Button>
                     <Button variant="danger" className="text-xs px-2.5 py-1" onClick={() => act(f.id, 'confirm')}>Confirm</Button>
                   </div>
@@ -92,6 +113,30 @@ export function Admin() {
           )
         )}
       </Card>
+
+      <Card>
+        <h2 className="text-sm font-semibold text-ink-800 mb-3">Risk detail</h2>
+        {selectedFlag ? (
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold text-ink-800">{riskFlagLabel(selectedFlag)}</p>
+              <p className="text-[11px] text-ink-400 font-mono mt-0.5">{selectedFlag.account_id}</p>
+            </div>
+            <pre className="bg-ink-50 border border-ink-100 rounded-md p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap max-h-56">
+              {JSON.stringify(selectedFlag.detail ?? {}, null, 2)}
+            </pre>
+            <textarea
+              className={`${inputCls} text-xs`}
+              rows={3}
+              disabled
+              placeholder="Resolution notes are disabled until backend note persistence ships."
+            />
+          </div>
+        ) : (
+          <p className="text-xs text-ink-400">Load risk flags to inspect a held payout.</p>
+        )}
+      </Card>
+      </div>
     </div>
   );
 }

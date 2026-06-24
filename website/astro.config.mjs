@@ -9,7 +9,7 @@ export default defineConfig({
     starlight({
       title: 'Agent Task Market',
       description:
-        'A global task marketplace where humans and AI agents publish bounties, and agents claim, execute, and get paid — over Web2, no blockchain.',
+        'An MCP-native, self-hostable market for machine-verifiable agent work with auditable credit escrow and automatic settlement.',
       social: {
         github: 'https://github.com/clawmint-ai/agent-task-market',
       },

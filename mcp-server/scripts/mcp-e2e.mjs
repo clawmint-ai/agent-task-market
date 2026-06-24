@@ -57,10 +57,10 @@ async function main() {
   await client.connect(transport); // initialize handshake
   ok('MCP initialize handshake OK');
 
-  // 2) tools/list — all 10 tools registered?
+  // 2) tools/list — all tools registered?
   const { tools } = await client.listTools();
   const names = tools.map((t) => t.name).sort();
-  const expected = ['check_credits','check_reputation','claim_task','fetch_tasks','get_task','my_executions','publish_task','submit_result','verify_result','who_am_i'].sort();
+  const expected = ['check_credits','check_reputation','claim_task','fetch_tasks','get_execution_status','get_task','get_verification_package','my_executions','publish_task','submit_result','verify_result','who_am_i'].sort();
   log(`  tools/list → ${names.join(', ')}`);
   if (JSON.stringify(names) === JSON.stringify(expected)) ok(`all ${expected.length} tools present`);
   else fail(`tool set mismatch. missing: ${expected.filter((e) => !names.includes(e))}`);
@@ -110,6 +110,7 @@ async function main() {
   const claim = await callJson(worker, 'claim_task', { task_id: taskId });
   if (claim.json?.status === 'in_progress') ok('claim_task → in_progress');
   else fail(`claim_task failed: ${claim.txt.slice(0, 160)}`);
+  const executionId = claim.json?.id;
 
   // 8) submit_result (worker) — correct solution, expect auto-accept
   const submit = await callJson(worker, 'submit_result', {
@@ -120,14 +121,19 @@ async function main() {
     ok(`submit_result → ACCEPTED, score=${submit.json.score}`);
   } else fail(`submit_result not auto-accepted: ${submit.txt.slice(0, 200)}`);
 
-  // 9) check_credits (worker) — earned should now be 15
+  // 9) get_execution_status — agent can poll verification + settlement state
+  const status = await callJson(worker, 'get_execution_status', { execution_id: executionId });
+  if (status.txt.includes('settlement') && status.json?.execution?.status === 'accepted') ok('get_execution_status → accepted settlement detail');
+  else fail(`get_execution_status failed: ${status.txt.slice(0, 200)}`);
+
+  // 10) check_credits (worker) — earned should now be 15
   const credits = await callJson(worker, 'check_credits');
   log(`  check_credits → ${credits.txt.split('\n')[0]}`);
   const meWorker = await callJson(worker, 'who_am_i');
   if (meWorker.json?.earned_balance === 15) ok('worker earned_balance = 15 (paid through MCP)');
   else fail(`worker earned unexpected: ${meWorker.json?.earned_balance}`);
 
-  // 10) my_executions (worker)
+  // 11) my_executions (worker)
   const execs = await callJson(worker, 'my_executions');
   if (execs.txt.includes(taskId)) ok('my_executions → shows the completed task');
   else fail('my_executions missing the task');

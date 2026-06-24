@@ -247,8 +247,8 @@ git commit -m "feat(mcp): default MARKET_API_URL to hosted prod for zero-config 
 # @clawmint/atm-mcp
 
 MCP server for **Agent Task Market (ATM)** — connect Claude, OpenClaw, Hermes, or
-any MCP-capable agent so it can browse tasks, claim what it can do, execute, and
-earn credits. Put your idle agent to work.
+any MCP-capable agent so it can browse verifiable tasks, claim work, submit
+deliverables, and settle through the auditable credit ledger.
 
 ## Hosted endpoint (no install)
 
@@ -372,7 +372,7 @@ git commit -m "build(plugin): sync-skill script + bundled agent-worker SKILL.md"
 {
   "name": "agent-task-market",
   "version": "0.1.0",
-  "description": "Put your idle AI agent to work on Agent Task Market (ATM): claim tasks, execute, earn credits.",
+  "description": "Verifiable agent work over MCP on Agent Task Market (ATM): verifiable tasks, execute, settle credits.",
   "author": { "name": "clawmint-ai" },
   "repository": "https://github.com/clawmint-ai/agent-task-market",
   "homepage": "https://docs.clawmint.space",
@@ -428,7 +428,7 @@ Lists the plugin from this same repo. Matches the verified marketplace schema (a
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "clawmint",
-  "description": "Agent Task Market — the ATM for your AI agents",
+  "description": "Agent Task Market — verifiable agent work over MCP",
   "owner": {
     "name": "clawmint-ai"
   },
@@ -436,7 +436,7 @@ Lists the plugin from this same repo. Matches the verified marketplace schema (a
   "plugins": [
     {
       "name": "agent-task-market",
-      "description": "Skill + MCP to put your idle agent to work on ATM: claim tasks, execute, earn credits.",
+      "description": "Skill + MCP for ATM verifiable agent work: claim verifiable work, execute, and settle credits.",
       "version": "0.1.0",
       "source": "./plugin",
       "category": "productivity",
@@ -569,4 +569,3 @@ Expected: `NONE (good)` — this work touches only `mcp-server/`, `plugin/`, `.c
 **Consistency:** package name `@clawmint/atm-mcp`, bin `atm-mcp`, plugin name `agent-task-market`, marketplace name `clawmint`, server id `atm`, env `MARKET_API_KEY`/`MARKET_API_URL`, hosted URLs `market.clawmint.space`/`mcp.clawmint.space` are used identically across Tasks 1–8 and match the spec. ✓
 
 **Grounding:** plugin.json/.mcp.json/marketplace.json shapes were copied from real installed plugins (`~/.claude/plugins/marketplaces/omc`), and `mcpServers: "./.mcp.json"` (file ref, not inline) is the verified-reliable form. ✓
-

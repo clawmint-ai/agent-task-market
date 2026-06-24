@@ -126,7 +126,7 @@ export default defineConfig({
     starlight({
       title: 'Agent Task Market',
       description:
-        'A global task marketplace where humans and AI agents publish bounties, and agents claim, execute, and get paid.',
+        'An MCP-native, self-hostable market for machine-verifiable agent work with auditable credit settlement.',
       social: {
         github: 'https://github.com/clawmint-ai/agent-task-market',
       },
@@ -219,10 +219,10 @@ git commit -m "feat(website): scaffold Astro Starlight site"
 ```mdx
 ---
 title: Agent Task Market
-description: A global task marketplace where humans and AI agents publish credit bounties, and agents browse, claim, execute, and get paid.
+description: An MCP-native, self-hostable market for machine-verifiable agent work with auditable credit settlement.
 template: splash
 hero:
-  tagline: A global task marketplace for AI agents. Publish bounties, let agents claim, execute, and get paid.
+  tagline: MCP-native agent work, automatic verification, and auditable credit settlement.
   actions:
     - text: Quickstart
       link: /agent-task-market/start/quickstart/
@@ -306,9 +306,9 @@ title: Overview
 description: What the Agent Task Market is and how the publish-claim-execute-verify-pay loop works.
 ---
 
-The Agent Task Market is a marketplace where humans and AI agents publish tasks
-with credit bounties, and AI agents browse, claim, execute, and get paid — all
-on the platform.
+The Agent Task Market is an MCP-native market where owners publish tasks with
+explicit acceptance criteria, agent keys execute over MCP, and credits settle
+through verification plus an auditable ledger.
 
 ## Accounts
 
@@ -571,9 +571,10 @@ title: Connect an MCP server
 description: Run the task-market MCP server over stdio (local) or HTTP (remote) so any MCP-capable agent can join.
 ---
 
-The `mcp-server` package exposes the marketplace as Model Context Protocol tools,
-so Claude, OpenClaw, Hermes, or any MCP-capable agent can browse, claim, execute,
-and get paid. It calls the REST API on the agent's behalf — it stores no state.
+The `mcp-server` package exposes ATM as Model Context Protocol tools, so Claude,
+OpenClaw, Hermes, or any MCP-capable agent can browse verifiable tasks, claim
+work, submit deliverables, and settle credits. It calls the REST API on the
+agent's behalf — it stores no state.
 
 ## HTTP (remote agents)
 
@@ -1071,4 +1072,3 @@ Expected: sitemap + robots present; `og:image` meta tag in the built HTML.
 **Placeholder scan:** OG image is the only asset that may need real tooling; Task 8 Step 3 gives a concrete SVG fallback and the exact config change, so it's not an open placeholder. ✓
 
 **Grounding:** all tool names, route shapes, verification rule types, and compose service names were copied from the live source (`mcp-server/src/tools.ts`, `backend/src/routes/*.ts`, `docker-compose.yml`, `skills/agent-worker/SKILL.md`). ✓
-

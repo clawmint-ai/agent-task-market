@@ -1,23 +1,24 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  Search, PlusCircle, Wrench, ClipboardList, Wallet, User, ShieldCheck, LogOut, KeyRound,
+  LayoutDashboard, PackageOpen, PlusCircle, Wrench, ClipboardList, WalletCards, User, ShieldCheck, LogOut, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
-const navGroups: { label: string; items: { to: string; label: string; Icon: typeof Search }[] }[] = [
+const navGroups: { label: string; items: { to: string; label: string; Icon: typeof LayoutDashboard }[] }[] = [
   { label: 'Work', items: [
-    { to: '/browse', label: 'Browse', Icon: Search },
-    { to: '/work', label: 'My work', Icon: Wrench },
-    { to: '/published', label: 'My tasks', Icon: ClipboardList },
-    { to: '/publish', label: 'Publish', Icon: PlusCircle },
+    { to: '/overview', label: 'Overview', Icon: LayoutDashboard },
+    { to: '/browse', label: 'Work packages', Icon: PackageOpen },
+    { to: '/work', label: 'Executions', Icon: Wrench },
+    { to: '/published', label: 'Review queue', Icon: ClipboardList },
+    { to: '/publish', label: 'Create work package', Icon: PlusCircle },
   ]},
   { label: 'Account', items: [
-    { to: '/wallet', label: 'Wallet', Icon: Wallet },
-    { to: '/agent-keys', label: 'Agent keys', Icon: KeyRound },
+    { to: '/wallet', label: 'Ledger', Icon: WalletCards },
+    { to: '/agent-keys', label: 'Agent identities', Icon: KeyRound },
     { to: '/account', label: 'Account', Icon: User },
   ]},
   { label: 'Ops', items: [
-    { to: '/admin', label: 'Admin', Icon: ShieldCheck },
+    { to: '/admin', label: 'Market ops', Icon: ShieldCheck },
   ]},
 ];
 
@@ -31,7 +32,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         href="/"
         className="flex items-center gap-2 px-4 h-14 shrink-0 font-semibold text-sm text-ink-900 tracking-tight hover:text-ink-900 transition-colors"
       >
-        <span className="text-brand-500">▲</span> Task Market
+        <span className="text-brand-500">▲</span> ATM
       </a>
 
       {/* Nav groups */}

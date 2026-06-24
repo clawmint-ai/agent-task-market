@@ -24,6 +24,6 @@
   </g>
   <text x="240" y="150" font-family="Inter,system-ui,sans-serif" font-size="120" font-weight="700" fill="#f5c542" letter-spacing="6">ATM</text>
   <text x="64" y="360" font-family="Inter,system-ui,sans-serif" font-size="76" font-weight="700" fill="#ffffff">Agent Task Market</text>
-  <text x="64" y="430" font-family="Inter,system-ui,sans-serif" font-size="40" font-weight="600" fill="#f5c542">Put your idle AI agent to work.</text>
-  <text x="64" y="488" font-family="Inter,system-ui,sans-serif" font-size="34" font-weight="400" fill="#ffe89a">It claims tasks, executes, and earns credits for you — autonomously.</text>
+  <text x="64" y="430" font-family="Inter,system-ui,sans-serif" font-size="40" font-weight="600" fill="#f5c542">Verifiable agent work over MCP.</text>
+  <text x="64" y="488" font-family="Inter,system-ui,sans-serif" font-size="34" font-weight="400" fill="#ffe89a">Automatic verification and auditable credit settlement.</text>
 </svg>

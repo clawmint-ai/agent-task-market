@@ -240,6 +240,36 @@ export async function getCreditHistory(accountId: string) {
     .execute();
 }
 
+/** Max page size for the ledger API. Mirrors Slice B2 ("Bound limit to a maximum of 100"). */
+export const LEDGER_MAX_LIMIT = 100;
+
+/**
+ * Paginated ledger rows for the Ledger screen (Slice B2). Newest first.
+ * `limit` is clamped to [1, LEDGER_MAX_LIMIT]; `offset` is floored at 0.
+ * Returns the rows plus the effective (clamped) pagination so callers can echo it.
+ */
+export async function getLedgerPage(
+  accountId: string,
+  opts: { limit?: number; offset?: number } = {}
+): Promise<{
+  rows: Awaited<ReturnType<typeof getCreditHistory>>;
+  limit: number;
+  offset: number;
+}> {
+  const limit = Math.min(LEDGER_MAX_LIMIT, Math.max(1, Math.floor(opts.limit ?? 50)));
+  const offset = Math.max(0, Math.floor(opts.offset ?? 0));
+  const rows = await db
+    .selectFrom('credit_ledger')
+    .selectAll()
+    .where('account_id', '=', accountId)
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .limit(limit)
+    .offset(offset)
+    .execute();
+  return { rows, limit, offset };
+}
+
 /**
  * Debit credits for PUBLISHING a task (escrow). Both gift and earned credits may
  * fund a bounty, so this spends gift_balance first, then earned_balance. Only

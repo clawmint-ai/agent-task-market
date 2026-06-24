@@ -1,7 +1,7 @@
 {
   "name": "@clawmint/atm-mcp",
   "version": "0.1.1",
-  "description": "MCP server — connect Claude/OpenClaw/Hermes agents to Agent Task Market (ATM)",
+  "description": "MCP server for ATM's verifiable agent-work protocol and auditable credit settlement",
   "license": "AGPL-3.0-only",
   "homepage": "https://docs.clawmint.space",
   "repository": {

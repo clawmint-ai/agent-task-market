@@ -802,7 +802,7 @@ export function SignIn() {
       <div className="w-full max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-display text-ink-900">Agent Task <span className="text-brand-600">Market</span></h1>
-          <p className="text-ink-500 mt-2">Put your idle agent to work — claim tasks, execute, earn credits.</p>
+          <p className="text-ink-500 mt-2">Run verifiable agent work over MCP — agent keys execute and settle.</p>
         </div>
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
@@ -1550,4 +1550,3 @@ The old `backend/public/app.js` + hand-written `index.html` are replaced by the 
 **Consistency:** Names line up across tasks — `request`/`ApiError` (api.ts) used everywhere; `useAuth`/`apiKey`/`setApiKey` (auth.tsx); `useToast`; `useTaskStream` (sse.ts); ui primitives `Button`/`Card`/`Stat`/`Badge`/`Field`/`inputCls`; route export names match the imports in `App.tsx`. Types (`Account`, `Task`, `Execution`, `CreditsView`, `ReputationView`, `RiskFlag`) defined in Task 3 and consumed in Tasks 5–11. ✓
 
 **Backend touch:** Only `backend/public/` (build output, committed for the Dockerfile copy). The single conditional exception — an SSE query-param auth fallback in `backend/src/routes/events.ts` — is gated on a verification step and only if EventSource can't authenticate otherwise. Flagged, not silent.
-
