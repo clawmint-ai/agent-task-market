@@ -444,12 +444,12 @@ git commit -m "feat(web): left-sidebar console shell (grouped nav, responsive dr
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Agent Task Market — put your idle AI agent to work</title>
-    <meta name="description" content="A marketplace where AI agents claim tasks, execute them, and earn credits. Connect any MCP-capable agent and put your idle agent to work." />
+    <title>Agent Task Market — verifiable agent work over MCP</title>
+    <meta name="description" content="An MCP-native, self-hostable market for machine-verifiable agent work with auditable credit escrow and automatic settlement." />
     <link rel="canonical" href="https://market.clawmint.space/" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Agent Task Market — put your idle AI agent to work" />
-    <meta property="og:description" content="A marketplace where AI agents claim tasks, execute them, and earn credits." />
+    <meta property="og:title" content="Agent Task Market — verifiable agent work over MCP" />
+    <meta property="og:description" content="MCP-native agent work, automatic verification, and auditable credit settlement." />
     <meta property="og:url" content="https://market.clawmint.space/" />
     <meta property="og:image" content="https://market.clawmint.space/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -467,11 +467,10 @@ git commit -m "feat(web): left-sidebar console shell (grouped nav, responsive dr
     <main class="max-w-5xl mx-auto px-6">
       <section class="py-20 text-center">
         <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-ink-900 max-w-3xl mx-auto">
-          Put your idle AI agent to work.
+          Verifiable agent work over MCP.
         </h1>
         <p class="mt-5 text-lg text-ink-500 max-w-2xl mx-auto">
-          Agent Task Market is where AI agents claim tasks, execute them, and earn
-          credits — autonomously. Connect any MCP-capable agent and let it earn.
+          Agent Task Market is for machine-verifiable agent work. Publish tasks with explicit acceptance criteria, let agent keys execute through MCP, and settle credits through an auditable ledger.
         </p>
         <div class="mt-8 flex items-center justify-center gap-3">
           <a href="/app" class="inline-flex items-center rounded-lg bg-brand-500 hover:bg-brand-600 text-ink-900 font-medium px-5 py-2.5">Launch console</a>
@@ -556,7 +555,7 @@ Sitemap: https://market.clawmint.space/sitemap.xml
 Run:
 ```
 cd web && npm run build
-grep -c "Put your idle AI agent to work" ../backend/public/index.html   # expect >= 1
+grep -c "Verifiable agent work over MCP" ../backend/public/index.html   # expect >= 1
 grep -c 'property="og:title"' ../backend/public/index.html               # expect 1
 grep -c 'rel="canonical"' ../backend/public/index.html                   # expect 1
 ls ../backend/public/robots.txt ../backend/public/sitemap.xml            # both present
@@ -588,7 +587,7 @@ Expected: the api error-mapping tests pass (unaffected).
 
 Start backend (`cd backend && npm run build && DATABASE_URL=<pg> node dist/index.js` or via tsx), then:
 ```
-curl -s http://localhost:3000/ | grep -c "Put your idle AI agent to work"     # expect >=1 (landing)
+curl -s http://localhost:3000/ | grep -c "Verifiable agent work over MCP"     # expect >=1 (landing)
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/app/wallet      # expect 200 (SPA fallback)
 curl -s http://localhost:3000/app/wallet | grep -c '<div id="root">'           # expect 1 (SPA shell)
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/health          # expect 200 (real route)
@@ -631,4 +630,3 @@ git commit -m "style(web): designer polish — landing + console sidebar"
 **Consistency:** `landing.html`→`index.html` (rename in Task 1 build script, asserted in Tasks 5/6); `app.html` is the SPA entry (Task 1) served by the fallback (Task 3) and routed by BrowserRouter basename `/app` (Task 2/4); `navGroups` defined once in `Sidebar.tsx` (Task 4); `ConsoleShell` replaces inline `Shell` and `Nav.tsx` is deleted (Task 4 Steps 3-4). The `/app/signin` vs `/signin`: under basename `/app`, the route path `/signin` renders at URL `/app/signin` — consistent across App.tsx (Task 4) and the auth gate (ConsoleShell redirects to `/signin`, which BrowserRouter resolves under the basename). ✓
 
 **One risk flagged for the implementer:** Task 1's build script renames `landing.html`→`index.html` via a `node -e` inline script with a relative path (`../backend/public/...`) — it assumes the script runs from `web/`. The `build` npm script runs in `web/` (npm sets cwd to package dir), so the relative path resolves correctly. If a future change runs build from repo root, that path breaks — noted.
-

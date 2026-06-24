@@ -59,7 +59,7 @@ docs site deploy on its own cadence, and matches common OSS monorepo layout
 
 ### 1. Landing page (`src/content/docs/index.mdx`)
 Starlight `splash` template. Contents:
-- Hero: tagline "A global task marketplace for AI agents", subtitle, two CTAs
+- Hero: tagline "An MCP-native market for machine-verifiable agent work", subtitle, two CTAs
   (Quickstart, GitHub repo).
 - 3-up feature cards: Credit escrow · Verification modes · Reputation.
 - "How the flywheel works" step strip (publish → claim → execute → verify → paid).

@@ -7,6 +7,7 @@ import { Overview } from './routes/Overview';
 import { Browse } from './routes/Browse';
 import { Publish } from './routes/Publish';
 import { Work } from './routes/Work';
+import { ExecutionDetail } from './routes/ExecutionDetail';
 import { Published } from './routes/Published';
 import { Wallet } from './routes/Wallet';
 import { Account } from './routes/Account';
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/browse" element={<Browse />} />
               <Route path="/publish" element={<Publish />} />
               <Route path="/work" element={<Work />} />
+              <Route path="/work/:id" element={<ExecutionDetail />} />
               <Route path="/published" element={<Published />} />
               <Route path="/wallet" element={<Wallet />} />
               <Route path="/agent-keys" element={<AgentKeys />} />

@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import { useToast } from '../components/Toaster';
 import { Card, Button, Field, inputCls } from '../components/ui';
 import type { Verification } from '../lib/types';
+import { buildCreateWorkPackagePayload, type ExpectedArtifact } from '../lib/workPackage';
 
 export function Publish() {
   const { apiKey } = useAuth();
@@ -15,6 +16,7 @@ export function Publish() {
   const [type, setType] = useState('general');
   const [reward, setReward] = useState(100);
   const [minRep, setMinRep] = useState(0);
+  const [expectedArtifact, setExpectedArtifact] = useState<ExpectedArtifact>('markdown');
   const [mode, setMode] = useState<Verification['mode']>('manual');
   const [contains, setContains] = useState('');
   const [lang, setLang] = useState('python');
@@ -23,26 +25,36 @@ export function Publish() {
   const [threshold, setThreshold] = useState(6);
 
   async function publish() {
-    const verification: Verification = { mode };
-    if (mode === 'auto_rules') verification.rules = contains ? [{ type: 'contains', value: contains }] : [];
-    else if (mode === 'auto_tests') { verification.language = lang; verification.tests = tests; }
-    else if (mode === 'auto_llm') { verification.rubric = rubric; verification.pass_threshold = threshold; }
     try {
+      const body = buildCreateWorkPackagePayload({
+        title,
+        description,
+        type,
+        reward,
+        minReputation: minRep,
+        expectedArtifact,
+        mode,
+        contains,
+        language: lang,
+        tests,
+        rubric,
+        threshold,
+      });
       await request('POST', '/tasks', {
         key: apiKey,
-        body: { title: title.trim(), description: description.trim(), type, reward_credits: Number(reward), min_reputation: Number(minRep), verification },
+        body,
       });
-      toast('Task published');
+      toast('Work package created');
       nav('/published');
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Publish failed', 'err');
+      toast(e instanceof ApiError || e instanceof Error ? e.message : 'Publish failed', 'err');
     }
   }
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-h1 mb-1">Publish a task</h1>
-      <p className="text-xs text-ink-400 mb-5">Reward credits are escrowed from your balance immediately.</p>
+      <h1 className="text-h1 mb-1">Create work package</h1>
+      <p className="text-xs text-ink-400 mb-5">Reward credits are escrowed immediately and released through review or verification.</p>
 
       <Card>
         <Field label="Title">
@@ -67,6 +79,21 @@ export function Publish() {
           <Field label="Min reputation (0–10)">
             <input type="number" step="0.5" className={inputCls} value={minRep} onChange={(e) => setMinRep(Number(e.target.value))} />
           </Field>
+          <Field label="Expected artifact">
+            <select className={inputCls} value={expectedArtifact} onChange={(e) => setExpectedArtifact(e.target.value as ExpectedArtifact)}>
+              <option value="">Not specified</option>
+              <option value="plain_text">Plain text</option>
+              <option value="markdown">Markdown</option>
+              <option value="json">JSON</option>
+              <option value="source_code">Source code</option>
+              <option value="url">URL</option>
+              <option value="file_bundle">File bundle</option>
+              <option value="other">Other</option>
+            </select>
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <Field label="Verification">
             <select className={inputCls} value={mode} onChange={(e) => setMode(e.target.value as Verification['mode'])}>
               <option value="manual">Manual review</option>
@@ -107,7 +134,7 @@ export function Publish() {
         )}
 
         <div className="pt-1">
-          <Button onClick={publish}>Publish task</Button>
+          <Button onClick={publish}>Create work package</Button>
         </div>
       </Card>
     </div>

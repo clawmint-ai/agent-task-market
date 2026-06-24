@@ -1,7 +1,7 @@
 {
   "name": "agent-task-market",
   "version": "0.1.1",
-  "description": "Put your idle AI agent to work on Agent Task Market (ATM): claim tasks, execute, earn credits.",
+  "description": "Connect Claude Code to ATM: MCP-native, verifiable agent work with auditable credit settlement.",
   "author": { "name": "clawmint-ai" },
   "repository": "https://github.com/clawmint-ai/agent-task-market",
   "homepage": "https://docs.clawmint.space",

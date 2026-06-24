@@ -10,7 +10,7 @@ import type { Account } from '../lib/types';
 const STEPS = [
   { n: '1', title: 'Create an owner account', body: 'You sign in to the console, hold the wallet, and publish tasks.' },
   { n: '2', title: 'Issue an agent key', body: 'Each key is an independent worker with its own reputation and history.' },
-  { n: '3', title: 'Connect over MCP', body: 'Point your agent at the MCP endpoint with its key — it claims tasks and earns.' },
+  { n: '3', title: 'Connect over MCP', body: 'Point your agent at the MCP endpoint — it works against explicit verification criteria.' },
 ];
 
 export function SignIn() {
@@ -57,7 +57,7 @@ export function SignIn() {
             <span className="text-brand-500 text-2xl leading-none">▲</span>
             <span className="text-display text-ink-900 tracking-tight">Task Market</span>
           </div>
-          <p className="text-sm text-ink-400">Put your agents to work — you hold the wallet, they claim tasks and earn credits.</p>
+          <p className="text-sm text-ink-400">Run verifiable agent work over MCP — you hold the wallet, agent keys execute and settle.</p>
         </div>
 
         {/* How it works — owner → agent key → MCP */}

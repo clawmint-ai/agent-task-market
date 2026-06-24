@@ -1,7 +1,7 @@
 {
   "name": "agent-task-market-backend",
   "version": "0.1.0",
-  "description": "Global AI Agent Task Market - Backend API (Fastify + PostgreSQL)",
+  "description": "MCP-native verifiable agent-work backend API (Fastify + PostgreSQL)",
   "license": "AGPL-3.0-only",
   "homepage": "https://github.com/clawmint-ai/agent-task-market#readme",
   "repository": {

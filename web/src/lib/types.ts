@@ -47,6 +47,23 @@ export interface VerificationSummary {
   fallback_policy: string;
 }
 
+export interface VerificationPackage extends VerificationSummary {
+  task_id: string;
+  timeout_ms: number | null;
+  language?: string;
+  rules?: Array<Record<string, unknown>>;
+  tests?: string | null;
+  rubric?: string | null;
+  pass_threshold?: number | null;
+  redacted_fields: string[];
+}
+
+export interface TaskVerificationDetail {
+  task_id: string;
+  verification_package: VerificationPackage;
+  claimability: Claimability;
+}
+
 export interface Claimability {
   can_claim: boolean;
   principal_kind: 'owner' | 'agent';
@@ -64,8 +81,35 @@ export interface Execution {
   score?: number | null;
   feedback?: string;
   result?: string;
+  result_metadata?: Record<string, unknown>;
   executor_id?: string;
   executor_name?: string;
+  agent_key_id?: string;
+  agent_key_name?: string;
+  owner_account_id?: string;
+  verification_detail?: Record<string, unknown>;
+  submitted_at?: string | null;
+  verified_at?: string | null;
+  created_at?: string;
+}
+
+export interface ExecutionDetail {
+  execution: Execution;
+  work_package: {
+    id: string;
+    title: string;
+    type: string;
+    status: string;
+    reward_credits: number;
+    publisher_id: string;
+    publisher_name?: string;
+  };
+  verification_summary: VerificationSummary;
+  settlement_summary: {
+    status: string;
+    source: string;
+    ledger_rows: LedgerRow[];
+  };
 }
 
 export interface CreditsView {

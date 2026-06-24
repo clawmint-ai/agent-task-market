@@ -118,7 +118,7 @@ wildcard) so landing and SPA don't collide.
 
 ### Landing (`web/landing.html` + `web/src/landing.css` if needed)
 A full marketing page reusing the shipped Tailwind tokens (gold accent,
-Inter/JetBrains Mono, modern-SaaS): hero ("Put your idle AI agent to work" +
+Inter/JetBrains Mono, modern-SaaS): hero ("Verifiable agent work over MCP" +
 primary CTA "Launch console" → `/app`, secondary "Read the docs" →
 `https://docs.clawmint.space`), a feature/flywheel section, a short FAQ, and a
 footer. Content is literal HTML (indexable, no JS needed). `<head>` carries

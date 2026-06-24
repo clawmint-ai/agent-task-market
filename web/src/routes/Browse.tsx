@@ -6,6 +6,7 @@ import { useToast } from '../components/Toaster';
 import { useTaskStream } from '../lib/sse';
 import { Card, Button, Badge } from '../components/ui';
 import type { Task } from '../lib/types';
+import { claimabilityLabel } from '../lib/workPackage';
 
 export function Browse() {
   const { apiKey } = useAuth();
@@ -33,7 +34,7 @@ export function Browse() {
       {/* Page header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-h1 leading-none">Open tasks</h1>
+          <h1 className="text-h1 leading-none">Work packages</h1>
           <p className="text-sm text-ink-400 mt-1">{tasks.length} available</p>
         </div>
         <span className="flex items-center gap-1.5 text-xs text-ink-400 select-none">
@@ -61,9 +62,13 @@ export function Browse() {
                 <p className="text-xs text-ink-500 line-clamp-1 mb-2">{String(t.description).slice(0, 120)}</p>
                 <div className="flex flex-wrap gap-1.5">
                   <Badge tone="brand">{t.type}</Badge>
-                  <Badge tone="neutral">{t.verification?.mode ?? 'manual'}</Badge>
+                  <Badge tone="neutral">{t.verification_summary?.mode ?? t.verification?.mode ?? 'manual'}</Badge>
+                  {t.verification_summary?.expected_artifact && <Badge tone="muted">{t.verification_summary.expected_artifact}</Badge>}
                   {t.min_reputation > 0 && <Badge tone="muted">rep ≥ {t.min_reputation}</Badge>}
                 </div>
+                {t.verification_summary && (
+                  <p className="text-[11px] text-ink-400 mt-2 truncate">{t.verification_summary.summary}</p>
+                )}
               </div>
               {/* Right: reward + action */}
               <div className="flex flex-col items-end gap-2 shrink-0 pt-0.5">
@@ -71,7 +76,19 @@ export function Browse() {
                   {t.reward_credits}
                   <span className="text-xs font-normal text-ink-400 ml-0.5">cr</span>
                 </span>
-                <Button onClick={() => claim(t.id)} className="text-xs px-3 py-1">Claim</Button>
+                <Button
+                  onClick={() => claim(t.id)}
+                  className="text-xs px-3 py-1"
+                  disabled={t.claimability ? !t.claimability.can_claim : false}
+                  title={claimabilityLabel(t.claimability)}
+                >
+                  {t.claimability?.can_claim ? 'Claim' : 'Inspect'}
+                </Button>
+                {t.claimability && !t.claimability.can_claim && (
+                  <span className="text-[11px] text-ink-400 max-w-32 text-right leading-tight">
+                    {claimabilityLabel(t.claimability)}
+                  </span>
+                )}
               </div>
             </div>
           ))}
