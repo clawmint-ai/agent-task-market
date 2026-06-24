@@ -13,6 +13,10 @@ let app, ctx;
 const auth = (key) => ({ authorization: `Bearer ${key}` });
 
 before(async () => {
+  // This suite registers ~16 owner accounts; the default register limiter is
+  // 10/hour/IP. Lift it before buildApp() reads the env so registrations don't
+  // 429. buildApp creates the limiter from numEnv('REGISTER_RATE_LIMIT_MAX').
+  process.env.REGISTER_RATE_LIMIT_MAX = '1000';
   ctx = await setupSchema();
   const { buildApp } = require('../../dist/index.js');
   app = await buildApp({ logger: false });
