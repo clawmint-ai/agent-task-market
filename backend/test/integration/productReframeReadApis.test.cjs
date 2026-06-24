@@ -13,8 +13,8 @@ before(async () => {
 });
 
 after(async () => {
-  await app.close();
-  await ctx.teardown();
+  if (app) await app.close();
+  if (ctx) await ctx.teardown();
 });
 
 async function registerOwner(name) {
@@ -134,4 +134,120 @@ test('GET /accounts/me/ledger returns paged ledger rows and split balances', asy
   assert.ok(['earned', 'gift'].includes(body.rows[0].credit_class));
   assert.equal(body.pagination.limit, 10);
   assert.equal(body.pagination.offset, 0);
+});
+
+test('GET /tasks includes verification summary and server-derived owner claimability', async () => {
+  const owner = await registerOwner('task-summary-owner');
+  const taskRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/tasks',
+    headers: auth(owner.api_key),
+    payload: {
+      title: 'summary task',
+      description: 'return markdown',
+      type: 'content',
+      reward_credits: 30,
+      requirements: { expected_artifact: 'markdown' },
+      verification: { mode: 'auto_rules', rules: [{ type: 'contains', value: '# ' }] },
+    },
+  });
+  assert.equal(taskRes.statusCode, 201, 'task published');
+
+  const res = await app.inject({
+    method: 'GET',
+    url: '/api/v1/tasks?status=open',
+    headers: auth(owner.api_key),
+  });
+
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.body);
+  const task = body.tasks.find((t) => t.title === 'summary task');
+  assert.ok(task, 'new task returned');
+  assert.deepEqual(task.verification_summary, {
+    mode: 'auto_rules',
+    summary: 'auto_rules verification for markdown deliverable',
+    expected_artifact: 'markdown',
+    fallback_policy: 'manual_review_on_fallback',
+  });
+  assert.deepEqual(task.claimability, {
+    can_claim: false,
+    principal_kind: 'owner',
+    reasons: ['owner_credentials_cannot_claim_work'],
+    missing_requirements: [],
+  });
+});
+
+test('GET /tasks/:id/verification redacts pre-claim verifier internals', async () => {
+  const owner = await registerOwner('verification-owner');
+  const taskRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/tasks',
+    headers: auth(owner.api_key),
+    payload: {
+      title: 'regex task',
+      description: 'return matching output',
+      type: 'general',
+      reward_credits: 20,
+      requirements: { expected_artifact: 'plain_text' },
+      verification: { mode: 'auto_rules', rules: [{ type: 'regex', value: '^secret:' }] },
+    },
+  });
+  assert.equal(taskRes.statusCode, 201, 'task published');
+  const task = JSON.parse(taskRes.body);
+
+  const res = await app.inject({
+    method: 'GET',
+    url: `/api/v1/tasks/${task.id}/verification`,
+    headers: auth(owner.api_key),
+  });
+
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.body);
+  assert.equal(body.verification_package.mode, 'auto_rules');
+  assert.equal(body.verification_package.expected_artifact, 'plain_text');
+  assert.equal(body.verification_package.rules[0].value, '^secret:');
+  assert.deepEqual(body.verification_package.redacted_fields, []);
+});
+
+test('GET /executions/:id returns derived verification and settlement summaries', async () => {
+  const owner = await registerOwner('execution-owner');
+  const agentOwner = await registerOwner('execution-agent-owner');
+  const key = await issueAgentKey(agentOwner.api_key, 'execution-agent');
+  const taskRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/tasks',
+    headers: auth(owner.api_key),
+    payload: {
+      title: 'execution detail task',
+      description: 'submit result',
+      type: 'general',
+      reward_credits: 20,
+      requirements: { expected_artifact: 'plain_text' },
+      verification: { mode: 'manual' },
+    },
+  });
+  assert.equal(taskRes.statusCode, 201, 'task published');
+  const task = JSON.parse(taskRes.body);
+  const claimRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/tasks/${task.id}/claim`,
+    headers: auth(key.api_key),
+  });
+  assert.equal(claimRes.statusCode, 201, 'task claimed');
+  const execution = JSON.parse(claimRes.body);
+
+  const res = await app.inject({
+    method: 'GET',
+    url: `/api/v1/executions/${execution.id}`,
+    headers: auth(owner.api_key),
+  });
+
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.body);
+  assert.equal(body.execution.id, execution.id);
+  assert.equal(body.execution.agent_key_id, key.id);
+  assert.equal(body.work_package.id, task.id);
+  assert.equal(body.verification_summary.mode, 'manual');
+  assert.equal(body.settlement_summary.status, 'not_settled');
+  assert.equal(body.settlement_summary.source, 'derived_from_current_execution_and_ledger');
 });

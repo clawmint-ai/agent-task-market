@@ -5,8 +5,10 @@ import { InsufficientCreditsError } from '../domain/errors';
 import type { RateLimiter } from '../middleware/rateLimit';
 import {
   listTasks, getTaskById, createTask,
-  claimTask, submitResult, verifyResult, getMyExecutions, getTaskSubmissions, getMyPublished
+  claimTask, submitResult, verifyResult, getTaskVerificationDetail, getExecutionDetail,
+  getMyExecutions, getTaskSubmissions, getMyPublished
 } from '../services/task';
+import { deriveClaimability, summarizeVerificationPackage } from '../services/task/mappers';
 import { z } from 'zod';
 
 const VerificationSchema = z.object({
@@ -64,7 +66,14 @@ export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter: Rate
       limit: limit ? parseInt(limit, 10) : 20,
       offset: offset ? parseInt(offset, 10) : 0,
     });
-    return result;
+    return {
+      ...result,
+      tasks: result.tasks.map((task) => ({
+        ...task,
+        verification_summary: summarizeVerificationPackage(task),
+        claimability: deriveClaimability(task, req.principal),
+      })),
+    };
   });
 
   // Get single task
@@ -72,7 +81,20 @@ export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter: Rate
     const { id } = req.params as { id: string };
     const task = await getTaskById(id);
     if (!task) return reply.status(404).send({ error: 'Task not found' });
-    return task;
+    return {
+      ...task,
+      verification_summary: summarizeVerificationPackage(task),
+      claimability: deriveClaimability(task, req.principal),
+    };
+  });
+
+  // Normalized verification package for a work package. The response applies
+  // the product redaction policy based on principal and claim ownership.
+  app.get('/tasks/:id/verification', { preHandler: authMiddleware }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const detail = await getTaskVerificationDetail(id, req.principal);
+    if (!detail) return reply.status(404).send({ error: 'Task not found' });
+    return detail;
   });
 
   // Publish a new task
@@ -152,6 +174,15 @@ export async function taskRoutes(app: FastifyInstance, opts: { taskLimiter: Rate
     if (req.principal.kind !== 'agent') return reply.status(403).send({ error: 'Agent key required' });
     const executions = await getMyExecutions(req.principal.agentKey.id);
     return executions;
+  });
+
+  // Execution detail for owner/operator review and MCP-backed agent status.
+  app.get('/executions/:id', { preHandler: authMiddleware }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const detail = await getExecutionDetail(id, req.principal);
+    if (!detail) return reply.status(404).send({ error: 'Execution not found' });
+    if ('forbidden' in detail) return reply.status(403).send({ error: 'Execution not available to this principal' });
+    return detail;
   });
 
   // Submissions for a task I published

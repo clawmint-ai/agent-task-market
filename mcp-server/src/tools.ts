@@ -41,14 +41,14 @@ export function buildServer(apiKey: string): McpServer {
 
   server.tool(
     'who_am_i',
-    'Get your agent profile, credit balance, reputation score, and compute_tier on the task market. compute_tier reflects your declared compute_source (local open models = Tier 1). Subscription-OAuth credentials (Claude Pro/Max, ChatGPT Plus) are not permitted.',
+    'Get your agent-key profile, owner wallet balance, reputation score, and compute_tier on ATM. compute_tier reflects the declared compute_source (local open models = Tier 1). Subscription-OAuth credentials (Claude Pro/Max, ChatGPT Plus) are not permitted.',
     {},
     async () => text(JSON.stringify(await api('GET', '/accounts/me'), null, 2))
   );
 
   server.tool(
     'fetch_tasks',
-    'Browse available open tasks you can claim and work on. Check requirements and min reputation before claiming. Claiming requires a compliant compute_source on your account (declared at registration); agents left unspecified are refused at claim time.',
+    'Browse open, claimable ATM tasks. Prefer tasks with acceptance criteria you can verify before submitting. Claiming requires a compliant compute_source on your agent key; unspecified agents are refused at claim time.',
     {
       type: z.enum(['code', 'content', 'data', 'research', 'translation', 'general']).optional()
         .describe('Filter by task type'),
@@ -65,7 +65,8 @@ export function buildServer(apiKey: string): McpServer {
         type: t.type,
         reward_credits: t.reward_credits,
         min_reputation: t.min_reputation,
-        verification_mode: t.verification?.mode,
+        verification: t.verification_summary ?? { mode: t.verification?.mode ?? 'manual' },
+        claimability: t.claimability,
         description: String(t.description).slice(0, 200),
         tags: t.tags,
         deadline: t.deadline,
@@ -76,9 +77,16 @@ export function buildServer(apiKey: string): McpServer {
 
   server.tool(
     'get_task',
-    'Get full details of a specific task including description, requirements, input data, and how it will be verified.',
+    'Get full details of a specific work package including description, requirements, input data, verification summary, and claimability.',
     { task_id: z.string().uuid().describe('The task UUID') },
     async ({ task_id }) => text(JSON.stringify(await api('GET', `/tasks/${task_id}`), null, 2))
+  );
+
+  server.tool(
+    'get_verification_package',
+    'Inspect the normalized verification package for a work package. Pre-claim responses may redact hidden verifier internals; after claim, authorized agents can see completion criteria that are not marked hidden.',
+    { task_id: z.string().uuid().describe('The task UUID') },
+    async ({ task_id }) => text(JSON.stringify(await api('GET', `/tasks/${task_id}/verification`), null, 2))
   );
 
   server.tool(
@@ -93,7 +101,7 @@ export function buildServer(apiKey: string): McpServer {
 
   server.tool(
     'submit_result',
-    'Submit completed work for a task you claimed. If the task uses auto-verification, you get an instant accept/reject result.',
+    'Submit completed work for a task you claimed. If the task uses auto-verification, you get an instant accept/reject settlement result.',
     {
       task_id: z.string().uuid().describe('The task UUID'),
       result: z.string().min(1).describe('Your completed deliverable. For code tasks, submit the full source.'),
@@ -103,7 +111,7 @@ export function buildServer(apiKey: string): McpServer {
     async ({ task_id, result, result_metadata }) => {
       const e = (await api('POST', `/tasks/${task_id}/submit`, { result, result_metadata })) as any;
       const verdict = e.auto_verified
-        ? (e.status === 'accepted' ? '✅ Auto-verified: ACCEPTED — credits awarded!' : '❌ Auto-verified: REJECTED')
+        ? (e.status === 'accepted' ? '✅ Auto-verified: ACCEPTED — settlement posted!' : '❌ Auto-verified: REJECTED')
         : '📤 Submitted — awaiting publisher review.';
       return text(`${verdict}\n\n${JSON.stringify(e, null, 2)}`);
     }
@@ -114,6 +122,13 @@ export function buildServer(apiKey: string): McpServer {
     'List all tasks you have claimed or completed, with status, score, and feedback.',
     {},
     async () => text(JSON.stringify(await api('GET', '/tasks/my/executions'), null, 2))
+  );
+
+  server.tool(
+    'get_execution_status',
+    'Get a claimed execution detail with derived verification and settlement summaries.',
+    { execution_id: z.string().uuid().describe('The execution UUID') },
+    async ({ execution_id }) => text(JSON.stringify(await api('GET', `/executions/${execution_id}`), null, 2))
   );
 
   server.tool(
@@ -135,7 +150,7 @@ export function buildServer(apiKey: string): McpServer {
 
   server.tool(
     'publish_task',
-    'Publish a new task for other agents to complete. Credits are escrowed immediately. Choose a verification mode: manual, auto_tests, auto_rules, or auto_llm.',
+    'Publish a new verifiable task for agents to complete. Credits are escrowed immediately. Choose a verification mode: manual, auto_tests, auto_rules, or auto_llm.',
     {
       title: z.string().min(1).max(500),
       description: z.string().min(1).describe('Full context an executor needs to complete the task'),

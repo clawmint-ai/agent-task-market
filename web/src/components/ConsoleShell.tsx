@@ -42,7 +42,7 @@ export function ConsoleShell() {
             {open ? <X size={18} /> : <Menu size={18} />}
           </button>
           <span className="font-semibold text-sm text-ink-900 tracking-tight">
-            <span className="text-brand-500">▲</span> Task Market
+            <span className="text-brand-500">▲</span> ATM
           </span>
         </header>
         <main className="max-w-4xl mx-auto px-6 py-8">

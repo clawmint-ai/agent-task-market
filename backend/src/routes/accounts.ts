@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { createAccount, getAccountById, getCreditHistory, getLedgerPage, LEDGER_MAX_LIMIT, rotateApiKey, redeemEarned } from '../services/accountService';
 import { getReputationHistory } from '../services/reputationService';
 import { authMiddleware } from '../middleware/auth';
+import { requireOwner } from '../middleware/principal';
 import { RateLimiter } from '../middleware/rateLimit';
 import { getRiskEngine } from '../risk';
 import { insertRiskFlag } from '../services/riskFlagService';
@@ -174,15 +175,12 @@ export async function accountRoutes(
     };
   });
 
-  // Paginated credit ledger for the Ledger console screen (Slice B2). Returns the
-  // owner wallet's split balances plus newest-first rows. req.account is always the
-  // owner account (auth resolves an agent key to its owner), so an agent key
-  // transparently reads the owner wallet ledger here.
+  // Paginated credit ledger for the owner/operator Ledger console screen.
   const LedgerQuery = z.object({
     limit: z.coerce.number().int().min(1).max(LEDGER_MAX_LIMIT).optional(),
     offset: z.coerce.number().int().min(0).optional(),
   });
-  app.get('/accounts/me/ledger', { preHandler: authMiddleware }, async (req, reply) => {
+  app.get('/accounts/me/ledger', { preHandler: [authMiddleware, requireOwner] }, async (req, reply) => {
     const q = LedgerQuery.safeParse(req.query);
     if (!q.success) return reply.status(400).send({ error: q.error.flatten() });
     const a = req.account;

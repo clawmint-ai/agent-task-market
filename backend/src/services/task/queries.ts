@@ -1,7 +1,16 @@
 import db from '../../db/pool';
-import { Task, parseTask, parseExecution } from './mappers';
+import {
+  Task,
+  parseTask,
+  parseExecution,
+  deriveClaimability,
+  normalizeVerificationPackage,
+  summarizeVerificationPackage,
+  type VerificationVisibility,
+} from './mappers';
 import { computeTier, priorityScore } from '../../domain/compliance';
 import type { ComputeSource } from '../../db/types';
+import type { Principal } from '../../middleware/auth';
 
 export async function listTasks(params: {
   status?: string;
@@ -46,6 +55,34 @@ export async function getTaskById(id: string): Promise<Task | null> {
   return row ? parseTask(row) : null;
 }
 
+async function hasAgentClaim(taskId: string, agentKeyId: string): Promise<boolean> {
+  const row = await db
+    .selectFrom('task_executions')
+    .select('id')
+    .where('task_id', '=', taskId)
+    .where('executor_id', '=', agentKeyId)
+    .executeTakeFirst();
+  return Boolean(row);
+}
+
+export async function getTaskVerificationDetail(taskId: string, principal: Principal) {
+  const task = await getTaskById(taskId);
+  if (!task) return null;
+
+  let visibility: VerificationVisibility = 'pre_claim';
+  if (principal.kind === 'owner' && principal.account.id === task.publisher_id) {
+    visibility = 'publisher';
+  } else if (principal.kind === 'agent' && (await hasAgentClaim(taskId, principal.agentKey.id))) {
+    visibility = 'after_claim';
+  }
+
+  return {
+    task_id: task.id,
+    verification_package: normalizeVerificationPackage(task, visibility),
+    claimability: deriveClaimability(task, principal),
+  };
+}
+
 export async function getMyExecutions(executorId: string) {
   const rows = await db
     .selectFrom('task_executions as te')
@@ -56,6 +93,110 @@ export async function getMyExecutions(executorId: string) {
     .orderBy('te.created_at', 'desc')
     .execute();
   return rows.map(parseExecution);
+}
+
+function derivedSettlementStatus(status: string) {
+  if (status === 'accepted') return 'paid_or_held';
+  if (status === 'rejected') return 'refunded_or_superseded';
+  if (status === 'submitted') return 'pending_review';
+  return 'not_settled';
+}
+
+export async function getExecutionDetail(executionId: string, principal: Principal) {
+  const row = await db
+    .selectFrom('task_executions as te')
+    .innerJoin('tasks as t', 't.id', 'te.task_id')
+    .innerJoin('agent_keys as ak', 'ak.id', 'te.executor_id')
+    .innerJoin('accounts as a', 'a.id', 't.publisher_id')
+    .selectAll('te')
+    .select([
+      't.publisher_id',
+      't.title as task_title',
+      't.description as task_description',
+      't.type as task_type',
+      't.reward_credits',
+      't.status as task_status',
+      't.requirements',
+      't.input_data',
+      't.deadline',
+      't.max_executors',
+      't.tags',
+      't.verification',
+      't.min_reputation',
+      't.created_at as task_created_at',
+      't.updated_at as task_updated_at',
+      't.claimed_at',
+      't.completed_at',
+      'ak.name as agent_key_name',
+      'ak.owner_account_id as agent_owner_account_id',
+      'a.name as publisher_name',
+    ])
+    .where('te.id', '=', executionId)
+    .executeTakeFirst();
+
+  if (!row) return null;
+
+  const publisherId = (row as any).publisher_id as string;
+  const executorId = (row as any).executor_id as string;
+  const authorized =
+    (principal.kind === 'owner' && principal.account.id === publisherId) ||
+    (principal.kind === 'agent' && principal.agentKey.id === executorId);
+  if (!authorized) return { forbidden: true as const };
+
+  const execution = parseExecution(row);
+  const task = parseTask({
+    id: execution.task_id,
+    publisher_id: publisherId,
+    title: (row as any).task_title,
+    description: (row as any).task_description,
+    type: (row as any).task_type,
+    reward_credits: (row as any).reward_credits,
+    status: (row as any).task_status,
+    requirements: (row as any).requirements,
+    input_data: (row as any).input_data,
+    deadline: (row as any).deadline,
+    max_executors: (row as any).max_executors,
+    tags: (row as any).tags,
+    verification: (row as any).verification,
+    min_reputation: (row as any).min_reputation,
+    created_at: (row as any).task_created_at,
+    updated_at: (row as any).task_updated_at,
+    claimed_at: (row as any).claimed_at,
+    completed_at: (row as any).completed_at,
+    publisher_name: (row as any).publisher_name,
+  });
+
+  const ledgerRows = await db
+    .selectFrom('credit_ledger')
+    .selectAll()
+    .where('ref_id', '=', task.id)
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .execute();
+
+  return {
+    execution: {
+      ...execution,
+      agent_key_id: execution.executor_id,
+      agent_key_name: (row as any).agent_key_name,
+      owner_account_id: publisherId,
+    },
+    work_package: {
+      id: task.id,
+      title: task.title,
+      type: task.type,
+      status: task.status,
+      reward_credits: task.reward_credits,
+      publisher_id: task.publisher_id,
+      publisher_name: task.publisher_name,
+    },
+    verification_summary: summarizeVerificationPackage(task),
+    settlement_summary: {
+      status: derivedSettlementStatus(execution.status),
+      ledger_rows: ledgerRows,
+      source: 'derived_from_current_execution_and_ledger',
+    },
+  };
 }
 
 export async function getTaskSubmissions(taskId: string, publisherId: string) {
