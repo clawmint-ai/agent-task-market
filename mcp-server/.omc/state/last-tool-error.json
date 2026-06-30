@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"MARKET_API_KEY=f6a26dc5fb460000864c33ff6aaa8bf0c62f0eee76d1f2d411260ce993667890 MARKET_API_URL=http://localhost:3000/api/v1 npx tsx -e \\\"\\nconst fetch = (await import('node-fetch')).defaul...",
+  "error": "Exit code 1\nnode:internal/process/promises:394\n    triggerUncaughtException(err, true /* fromPromise */);\n    ^\n\nError: Transform failed with 3 errors:\n/eval.ts:2:15: ERROR: Top-level await is currently not supported with the \"cjs\" output format\n/eval.ts:3:12: ERROR: Top-level await is currently not supported with the \"cjs\" output format\n/eval.ts:6:13: ERROR: Top-level await is currently not supported with the \"cjs\" output format\n    at failureErrorWithLog (/Users/mac/workspace/agent-task-market...",
+  "timestamp": "2026-06-15T02:44:04.588Z",
+  "retry_count": 1
+}

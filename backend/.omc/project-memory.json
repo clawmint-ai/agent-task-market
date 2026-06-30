@@ -1,0 +1,497 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1781490708385,
+  "projectRoot": "/Users/mac/workspace/agent-task-market/backend",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "fastify",
+        "version": "4.27.0",
+        "category": "backend"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "node --check test/integration/verificationExecutionAuthz.test.cjs && echo \"SYNTAX OK\"; npm run build 2>&1 | tail -3; echo \"exit $?\"",
+    "testCommand": "cd /Users/mac/workspace/agent-task-market/backend && echo \"=== test files + runner ===\" && ls test/ 2>/dev/null | head && grep -nE \"\\\"test\\\"|vitest|node:test|tsx --test\" package.json && echo \"=== an existing test's imports/harness ===\" && head -25 test/*.test.ts 2>/dev/null | head -30",
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "tsx watch src/index.ts",
+      "build": "tsc && cp src/db/schema.pg.sql dist/db/",
+      "start": "node dist/index.js",
+      "seed": "tsx scripts/seed-tasks.ts",
+      "ingest": "tsx scripts/ingest.ts",
+      "test:unit": "tsx --test test/unit/*.test.ts",
+      "test:integration": "npm run build && node --test test/integration/*.test.cjs",
+      "test": "npm run test:unit && npm run test:integration"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase",
+    "importStyle": "ES modules",
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "public",
+      "scripts",
+      "src",
+      "test"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 0,
+      "lastAccessed": 1781490708365,
+      "keyFiles": []
+    },
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 1,
+      "lastAccessed": 1781490708365,
+      "keyFiles": [
+        "index.js"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 2,
+      "lastAccessed": 1781490708370,
+      "keyFiles": [
+        "app.js",
+        "index.html"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 3,
+      "lastAccessed": 1781490708370,
+      "keyFiles": [
+        "ingest.ts",
+        "seed-tasks.ts",
+        "seed-templates.ts"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 2,
+      "lastAccessed": 1781490708370,
+      "keyFiles": [
+        "index.ts"
+      ]
+    },
+    "test": {
+      "path": "test",
+      "purpose": "Test files",
+      "fileCount": 0,
+      "lastAccessed": 1781490708371,
+      "keyFiles": []
+    },
+    "dist/middleware": {
+      "path": "dist/middleware",
+      "purpose": "Middleware",
+      "fileCount": 1,
+      "lastAccessed": 1781490708372,
+      "keyFiles": [
+        "auth.js"
+      ]
+    },
+    "dist/routes": {
+      "path": "dist/routes",
+      "purpose": "Route handlers",
+      "fileCount": 4,
+      "lastAccessed": 1781490708372,
+      "keyFiles": [
+        "accounts.js",
+        "admin.js",
+        "events.js"
+      ]
+    },
+    "dist/services": {
+      "path": "dist/services",
+      "purpose": "Business logic services",
+      "fileCount": 5,
+      "lastAccessed": 1781490708372,
+      "keyFiles": [
+        "accountService.js",
+        "reconcileService.js",
+        "reputationService.js"
+      ]
+    },
+    "src/middleware": {
+      "path": "src/middleware",
+      "purpose": "Middleware",
+      "fileCount": 1,
+      "lastAccessed": 1781490708374,
+      "keyFiles": [
+        "auth.ts"
+      ]
+    },
+    "src/routes": {
+      "path": "src/routes",
+      "purpose": "Route handlers",
+      "fileCount": 4,
+      "lastAccessed": 1781490708374,
+      "keyFiles": [
+        "accounts.ts",
+        "admin.ts",
+        "events.ts"
+      ]
+    },
+    "src/services": {
+      "path": "src/services",
+      "purpose": "Business logic services",
+      "fileCount": 4,
+      "lastAccessed": 1781490708376,
+      "keyFiles": [
+        "accountService.ts",
+        "reconcileService.ts",
+        "reputationService.ts"
+      ]
+    },
+    "test/helpers": {
+      "path": "test/helpers",
+      "purpose": "Helper functions",
+      "fileCount": 1,
+      "lastAccessed": 1781490708378,
+      "keyFiles": [
+        "db.cjs"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/services/task/settlement.ts",
+      "accessCount": 39,
+      "lastAccessed": 1782136844686,
+      "type": "file"
+    },
+    {
+      "path": "src/index.ts",
+      "accessCount": 34,
+      "lastAccessed": 1782278908942,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/tasks.ts",
+      "accessCount": 23,
+      "lastAccessed": 1782294404297,
+      "type": "file"
+    },
+    {
+      "path": "src/services/accountService.ts",
+      "accessCount": 20,
+      "lastAccessed": 1782278659549,
+      "type": "file"
+    },
+    {
+      "path": "src/services/task/lifecycle.ts",
+      "accessCount": 19,
+      "lastAccessed": 1782137436081,
+      "type": "file"
+    },
+    {
+      "path": "test/integration/ledger.test.cjs",
+      "accessCount": 15,
+      "lastAccessed": 1782137546562,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/accounts.ts",
+      "accessCount": 15,
+      "lastAccessed": 1782278694605,
+      "type": "file"
+    },
+    {
+      "path": ".env.example",
+      "accessCount": 10,
+      "lastAccessed": 1781787298266,
+      "type": "file"
+    },
+    {
+      "path": "test/integration/submissionRanking.test.cjs",
+      "accessCount": 10,
+      "lastAccessed": 1782137706682,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/admin.ts",
+      "accessCount": 7,
+      "lastAccessed": 1781701948368,
+      "type": "file"
+    },
+    {
+      "path": "src/runtime/sandbox.ts",
+      "accessCount": 6,
+      "lastAccessed": 1781613673288,
+      "type": "file"
+    },
+    {
+      "path": "scripts/seed-tasks.ts",
+      "accessCount": 6,
+      "lastAccessed": 1781773836174,
+      "type": "file"
+    },
+    {
+      "path": "src/services/reconcileService.ts",
+      "accessCount": 5,
+      "lastAccessed": 1781697339207,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/metrics.ts",
+      "accessCount": 5,
+      "lastAccessed": 1782019668984,
+      "type": "file"
+    },
+    {
+      "path": "src/db/types.ts",
+      "accessCount": 5,
+      "lastAccessed": 1782276606253,
+      "type": "file"
+    },
+    {
+      "path": "src/db/schema.pg.sql",
+      "accessCount": 4,
+      "lastAccessed": 1781697478566,
+      "type": "file"
+    },
+    {
+      "path": "src/risk/index.ts",
+      "accessCount": 4,
+      "lastAccessed": 1781697663499,
+      "type": "file"
+    },
+    {
+      "path": "src/middleware/rateLimit.ts",
+      "accessCount": 4,
+      "lastAccessed": 1781701588054,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 4,
+      "lastAccessed": 1782004205470,
+      "type": "file"
+    },
+    {
+      "path": "src/services/metricsService.ts",
+      "accessCount": 4,
+      "lastAccessed": 1782278771816,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/sandbox.test.ts",
+      "accessCount": 3,
+      "lastAccessed": 1781613646975,
+      "type": "file"
+    },
+    {
+      "path": "src/risk/types.ts",
+      "accessCount": 3,
+      "lastAccessed": 1781697247671,
+      "type": "file"
+    },
+    {
+      "path": "src/db/pool.ts",
+      "accessCount": 3,
+      "lastAccessed": 1781697727358,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/settlement.test.ts",
+      "accessCount": 3,
+      "lastAccessed": 1781753974844,
+      "type": "file"
+    },
+    {
+      "path": "test/helpers/db.cjs",
+      "accessCount": 3,
+      "lastAccessed": 1781754029595,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/remoteRiskEngine.test.ts",
+      "accessCount": 3,
+      "lastAccessed": 1781862608058,
+      "type": "file"
+    },
+    {
+      "path": "src/runtime/maintenance.ts",
+      "accessCount": 3,
+      "lastAccessed": 1782019583089,
+      "type": "file"
+    },
+    {
+      "path": "src/services/verificationService.ts",
+      "accessCount": 2,
+      "lastAccessed": 1781492324394,
+      "type": "file"
+    },
+    {
+      "path": "src/domain/settlement.ts",
+      "accessCount": 2,
+      "lastAccessed": 1781495401831,
+      "type": "file"
+    },
+    {
+      "path": "Dockerfile",
+      "accessCount": 2,
+      "lastAccessed": 1781526031216,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/infraFailure.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1781600996277,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/compliance.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1781662222700,
+      "type": "file"
+    },
+    {
+      "path": "src/risk/remote.ts",
+      "accessCount": 2,
+      "lastAccessed": 1781682758726,
+      "type": "file"
+    },
+    {
+      "path": "src/domain/credits.ts",
+      "accessCount": 2,
+      "lastAccessed": 1781697248491,
+      "type": "file"
+    },
+    {
+      "path": "test/integration/creditClass.test.cjs",
+      "accessCount": 2,
+      "lastAccessed": 1781697875126,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/redeem.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1781697882275,
+      "type": "file"
+    },
+    {
+      "path": "src/services/task/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1782137436600,
+      "type": "file"
+    },
+    {
+      "path": "scripts/verify-stale.mjs",
+      "accessCount": 1,
+      "lastAccessed": 1781496365254,
+      "type": "file"
+    },
+    {
+      "path": "src/domain/rateLimit.ts",
+      "accessCount": 1,
+      "lastAccessed": 1781503238828,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/rateLimit.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1781503255447,
+      "type": "file"
+    },
+    {
+      "path": "scripts/_rl_check.cjs",
+      "accessCount": 1,
+      "lastAccessed": 1781503576670,
+      "type": "file"
+    },
+    {
+      "path": "scripts/_batch2_check.cjs",
+      "accessCount": 1,
+      "lastAccessed": 1781503797200,
+      "type": "file"
+    },
+    {
+      "path": "scripts/_maint_check.cjs",
+      "accessCount": 1,
+      "lastAccessed": 1781504061748,
+      "type": "file"
+    },
+    {
+      "path": "tsconfig.json",
+      "accessCount": 1,
+      "lastAccessed": 1781525755318,
+      "type": "file"
+    },
+    {
+      "path": "src/runtime/logger.ts",
+      "accessCount": 1,
+      "lastAccessed": 1781527497672,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/metrics.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1781527690712,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/apiKeyHash.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1781587973083,
+      "type": "file"
+    },
+    {
+      "path": "test/integration/remoteRiskEngine.test.cjs",
+      "accessCount": 1,
+      "lastAccessed": 1781682837880,
+      "type": "file"
+    },
+    {
+      "path": "test/unit/credits.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1781690742207,
+      "type": "file"
+    },
+    {
+      "path": "src/risk/noop.ts",
+      "accessCount": 1,
+      "lastAccessed": 1781697247732,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

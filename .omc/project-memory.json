@@ -1,0 +1,257 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1782718477774,
+  "projectRoot": "/Users/mac/workspace/agent-task-market",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "backend": {
+      "path": "backend",
+      "purpose": null,
+      "fileCount": 9,
+      "lastAccessed": 1782718477759,
+      "keyFiles": [
+        "Dockerfile",
+        "package-lock.json",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "deploy": {
+      "path": "deploy",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1782718477759,
+      "keyFiles": [
+        "Caddyfile"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 4,
+      "lastAccessed": 1782718477760,
+      "keyFiles": [
+        "RUNBOOK-backup-restore.md",
+        "branch-protection.md",
+        "code-quality.md",
+        "deploy.md"
+      ]
+    },
+    "mcp-server": {
+      "path": "mcp-server",
+      "purpose": null,
+      "fileCount": 9,
+      "lastAccessed": 1782718477760,
+      "keyFiles": [
+        "Dockerfile",
+        "README.md",
+        "package-lock.json",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "monitoring": {
+      "path": "monitoring",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1782718477760,
+      "keyFiles": [
+        "alertmanager.telegram.yml",
+        "alertmanager.yml",
+        "alerts.yml",
+        "prometheus.yml"
+      ]
+    },
+    "ops": {
+      "path": "ops",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1782718477761,
+      "keyFiles": []
+    },
+    "plugin": {
+      "path": "plugin",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1782718477761,
+      "keyFiles": []
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 3,
+      "lastAccessed": 1782718477761,
+      "keyFiles": [
+        "branch-protection.sh",
+        "sync-skill.mjs",
+        "verify-risk-engine.sh"
+      ]
+    },
+    "skills": {
+      "path": "skills",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1782718477762,
+      "keyFiles": []
+    },
+    "web": {
+      "path": "web",
+      "purpose": null,
+      "fileCount": 10,
+      "lastAccessed": 1782718477762,
+      "keyFiles": [
+        "app.html",
+        "landing.html",
+        "package-lock.json",
+        "package.json",
+        "postcss.config.js"
+      ]
+    },
+    "website": {
+      "path": "website",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1782718477762,
+      "keyFiles": [
+        "astro.config.mjs",
+        "package-lock.json",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "backend/data": {
+      "path": "backend/data",
+      "purpose": "Data files",
+      "fileCount": 0,
+      "lastAccessed": 1782718477763,
+      "keyFiles": []
+    },
+    "backend/dist": {
+      "path": "backend/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 4,
+      "lastAccessed": 1782718477763,
+      "keyFiles": [
+        "config.js",
+        "config.js.map",
+        "index.js"
+      ]
+    },
+    "mcp-server/dist": {
+      "path": "mcp-server/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 2,
+      "lastAccessed": 1782718477765,
+      "keyFiles": [
+        "index.js",
+        "tools.js"
+      ]
+    },
+    "mcp-server/node_modules": {
+      "path": "mcp-server/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 2,
+      "lastAccessed": 1782718477765,
+      "keyFiles": []
+    },
+    "web/node_modules": {
+      "path": "web/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1782718477766,
+      "keyFiles": []
+    },
+    "web/public": {
+      "path": "web/public",
+      "purpose": "Public files",
+      "fileCount": 2,
+      "lastAccessed": 1782718477766,
+      "keyFiles": [
+        "robots.txt",
+        "sitemap.xml"
+      ]
+    },
+    "web/src": {
+      "path": "web/src",
+      "purpose": "Source code",
+      "fileCount": 3,
+      "lastAccessed": 1782718477767,
+      "keyFiles": [
+        "App.tsx",
+        "landing.ts",
+        "main.tsx"
+      ]
+    },
+    "website/dist": {
+      "path": "website/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 9,
+      "lastAccessed": 1782718477767,
+      "keyFiles": [
+        "404.html",
+        "CNAME",
+        "favicon.svg"
+      ]
+    },
+    "website/node_modules": {
+      "path": "website/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1782718477768,
+      "keyFiles": []
+    },
+    "website/public": {
+      "path": "website/public",
+      "purpose": "Public files",
+      "fileCount": 5,
+      "lastAccessed": 1782718477768,
+      "keyFiles": [
+        "CNAME",
+        "favicon.svg",
+        "og-image.png"
+      ]
+    },
+    "website/src": {
+      "path": "website/src",
+      "purpose": "Source code",
+      "fileCount": 1,
+      "lastAccessed": 1782718477768,
+      "keyFiles": [
+        "content.config.ts"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

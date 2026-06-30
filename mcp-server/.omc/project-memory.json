@@ -1,0 +1,111 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1781487880318,
+  "projectRoot": "/Users/mac/workspace/agent-task-market/mcp-server",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "express",
+        "version": "4.19.2",
+        "category": "backend"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "cd /Users/mac/workspace/agent-task-market/mcp-server && npm run build 2>&1 | tail -3 && echo \"=== dist 产物 + shebang ===\" && head -1 dist/index.js && ls dist/ && echo \"=== 待发布内容预演 ===\" && npm pack --dry-run 2>&1 | grep -E \"npm notice.*(dist/|README|package.json)\" | head -6",
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "tsx src/index.ts",
+      "build": "tsc",
+      "start": "node dist/index.js"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase",
+    "importStyle": "ES modules",
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 2,
+      "lastAccessed": 1781487880304,
+      "keyFiles": [
+        "index.ts",
+        "tools.ts"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/index.ts",
+      "accessCount": 6,
+      "lastAccessed": 1781498589336,
+      "type": "file"
+    },
+    {
+      "path": "src/tools.ts",
+      "accessCount": 5,
+      "lastAccessed": 1781498606425,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 5,
+      "lastAccessed": 1781526844560,
+      "type": "file"
+    },
+    {
+      "path": ".claude/settings.json",
+      "accessCount": 1,
+      "lastAccessed": 1781488080749,
+      "type": "file"
+    },
+    {
+      "path": "scripts/mcp-e2e.mjs",
+      "accessCount": 1,
+      "lastAccessed": 1781498694191,
+      "type": "file"
+    },
+    {
+      "path": "scripts/flywheel-proof.mjs",
+      "accessCount": 1,
+      "lastAccessed": 1781526643720,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

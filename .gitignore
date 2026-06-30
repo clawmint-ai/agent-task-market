@@ -43,12 +43,6 @@ Thumbs.db
 # NOTE: .claude/commands/ IS tracked — shared slash commands. Rest of .claude/ stays local.
 # Use .claude/* (not .claude/) so the dir itself isn't excluded — otherwise git
 # won't descend into it and the negation below can't re-include commands/.
-.claude/*
-!.claude/commands/
-.omc/
-.omx/
-**/.omc/
-**/.omx/
 .pytest_cache/
 **/.pytest_cache/
 
